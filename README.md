@@ -1362,24 +1362,11 @@ docker-compose up
 - Tipado estricto
 - Comentarios en funciones complejas
 
-### Reportar Bugs
-
-1. Ir a [Issues](https://github.com/RazorZ7X/rep_drill/issues)
-2. Crear un nuevo issue
-3. Incluir:
-   - Descripción del bug
-   - Pasos para reproducirlo
-   - Comportamiento esperado vs actual
-   - Screenshots (si aplica)
-   - Versión del sistema
-
 ---
 
 ## 📞 Soporte y Contacto
 
-- **GitHub**: [@RazorZ7X](https://github.com/RazorZ7X)
 - **Issues**: [rep_drill/issues](https://github.com/RazorZ7X/rep_drill/issues)
-- **Email**: (agregar si aplica)
 
 ---
 
