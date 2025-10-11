@@ -561,7 +561,6 @@ docker-compose exec auth python manage.py createsuperuser
 |---------|-------|------------|-----|
 | **Admin** | admin@repdrill.com | admin123 | Administrador |
 | **Vendedor** | vendedor@repdrill.com | (por definir) | Employee |
-| **Usuario** | elian.fc7@gmail.com | (por definir) | Customer |
 
 ### URLs de Acceso
 
