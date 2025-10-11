@@ -4,7 +4,8 @@ from .views import (
     OrderViewSet,
     OrderDetailsViewSet,
     ShipmentViewSet,
-    PaymentViewSet
+    PaymentViewSet,
+    dashboard_stats
 )
 
 router = DefaultRouter()
@@ -15,4 +16,5 @@ router.register(r'payments', PaymentViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('dashboard/stats/', dashboard_stats, name='dashboard-stats'),
 ]

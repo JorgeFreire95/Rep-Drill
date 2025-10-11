@@ -24,7 +24,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-26smvszvx^(n#x0d7re+lvk%h%&4*p=7k)&*&tm!g&_t*dh0fb'
+# IMPORTANTE: Debe ser la misma SECRET_KEY que el servicio de autenticación
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-26smvszvx^(n#x0d7re+lvk%h%&4*p=7k)&*&tm!g&_t*dh0fb')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -35,29 +36,35 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
-    'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'drf_spectacular',
+    # Health Check
+    'health_check',
+    'health_check.db',
+    'health_check.storage',
+    'health_check.contrib.migrations',
     'inventario',
+    'corsheaders',
 ]
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'UNAUTHENTICATED_USER': None,
+    'UNAUTHENTICATED_TOKEN': None,
 }
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -136,3 +143,59 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Configuración de CORS
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Para el uso del Frontend en desarrollo
+    "https://miaplicacion.com",
+]
+
+# Permitir cookies en solicitudes CORS
+CORS_ALLOW_CREDENTIALS = True
+
+# Para desarrollo, permitir todos los orígenes
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Configuración adicional para desarrollo
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
+
+# Configurar JWT para session backend
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=24),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': False,  # No usamos blacklist en microservicios secundarios
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,  # DEBE SER LA MISMA QUE EN servicio_auth
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+}
+
+# drf-spectacular Configuration
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Rep Drill - API de Inventario',
+    'DESCRIPTION': 'API RESTful para gestión de inventario, productos, bodegas y categorías. '
+                   'Incluye control de stock y seguimiento de almacenes.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': '/api',
+    'SECURITY': [{'bearerAuth': []}],
+    'APPEND_COMPONENTS': {
+        'securitySchemes': {
+            'bearerAuth': {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+            }
+        }
+    },
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': True,
+    },
+}

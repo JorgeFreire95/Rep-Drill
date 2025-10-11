@@ -23,7 +23,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure--gc*$+iz#y=bve4%z-vonvavwxsnn339^!khigwu(526$df!+$'
+# IMPORTANTE: Debe ser la misma SECRET_KEY que el servicio de autenticación
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure--gc*$+iz#y=bve4%z-vonvavwxsnn339^!khigwu(526$df!+$')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -41,17 +42,29 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'drf_spectacular',
+    # Health Check
+    'health_check',
+    'health_check.db',
+    'health_check.storage',
+    'health_check.contrib.migrations',
     'ventas',
-    
+    'corsheaders',
 ]
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
+    # Deshabilitado para desarrollo - sin autenticación requerida
+    # 'DEFAULT_AUTHENTICATION_CLASSES': (
+    #     'rest_framework_simplejwt.authentication.JWTAuthentication',
+    # ),
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',  # Permitir todo para desarrollo
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -118,9 +131,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-es'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Santiago'
 
 USE_I18N = True
 
@@ -136,3 +149,59 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Configuración de CORS
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Para el uso del Frontend en desarrollo
+    "https://miaplicacion.com",
+]
+
+# Permitir cookies en solicitudes CORS
+CORS_ALLOW_CREDENTIALS = True
+
+# Para desarrollo, permitir todos los orígenes
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Configuración adicional para desarrollo
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
+
+# Configurar JWT para session backend
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=24),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': False,  # No usamos blacklist en microservicios secundarios
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,  # DEBE SER LA MISMA QUE EN servicio_auth
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+}
+
+# drf-spectacular Configuration
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Rep Drill - API de Ventas',
+    'DESCRIPTION': 'API RESTful para gestión de ventas, órdenes, envíos y pagos. '
+                   'Permite crear y gestionar todo el flujo de ventas y seguimiento.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': '/api',
+    'SECURITY': [{'bearerAuth': []}],
+    'APPEND_COMPONENTS': {
+        'securitySchemes': {
+            'bearerAuth': {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+            }
+        }
+    },
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': True,
+    },
+}

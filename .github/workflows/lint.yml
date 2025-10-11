@@ -1,0 +1,81 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    name: Lint Python Code
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install linting tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black isort
+      
+      - name: Run Black (code formatter check)
+        run: |
+          black --check backend/ || echo "Black formatting issues found"
+        continue-on-error: true
+      
+      - name: Run isort (import sorting check)
+        run: |
+          isort --check-only backend/ || echo "Import sorting issues found"
+        continue-on-error: true
+      
+      - name: Run Flake8 (linter)
+        run: |
+          flake8 backend/ --count --select=E9,F63,F7,F82 --show-source --statistics || echo "Critical linting errors found"
+        continue-on-error: true
+      
+      - name: Run Flake8 (complexity and style)
+        run: |
+          flake8 backend/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+  security:
+    name: Security Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety
+      
+      - name: Run Bandit (security linter)
+        run: |
+          bandit -r backend/ -f json -o bandit-report.json || true
+          bandit -r backend/ || echo "Security issues found"
+        continue-on-error: true
+      
+      - name: Run Safety (dependency vulnerability check)
+        run: |
+          safety check --json || echo "Vulnerable dependencies found"
+        continue-on-error: true
+      
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
