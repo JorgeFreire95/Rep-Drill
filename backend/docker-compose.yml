@@ -1,0 +1,200 @@
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:15
+    container_name: rep_drill_postgres
+    environment:
+      POSTGRES_DB: rep_drill
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - microservices-network
+
+  # Servicio de Autenticación (Puerto 8003)
+  auth-service:
+    build: 
+      context: ./servicio_auth
+      dockerfile: Dockerfile
+    container_name: rep_drill_auth
+    environment:
+      - SECRET_KEY=django-insecure-54)3sn^7k9btm5@h=ukrvve+#g&tnad=8@r6sxvk3r)zno59!b
+      - DATABASE_DB=rep_drill
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=root
+      - DATABASE_SERVER=postgres
+      - DATABASE_PORT=5432
+      - DEBUG=True
+      - ALLOWED_HOSTS=localhost,127.0.0.1,auth-service
+    ports:
+      - "8003:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./servicio_auth:/app
+      - auth_static:/app/staticfiles
+      - auth_media:/app/media
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/auth/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Servicio de Personas (Puerto 8000)
+  personas-service:
+    build: 
+      context: ./servicio_personas
+      dockerfile: DockerFile  # Nota: el archivo se llama DockerFile (con F mayúscula)
+    container_name: rep_drill_personas
+    environment:
+      - SECRET_KEY=django-insecure-54)3sn^7k9btm5@h=ukrvve+#g&tnad=8@r6sxvk3r)zno59!b
+      - DATABASE_DB=rep_drill
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=root
+      - DATABASE_SERVER=postgres
+      - DATABASE_PORT=5432
+      - DEBUG=True
+      - ALLOWED_HOSTS=localhost,127.0.0.1,personas-service
+      - AUTH_SERVICE_URL=http://auth-service:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    volumes:
+      - ./servicio_personas:/app
+      - personas_static:/app/staticfiles
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Servicio de Inventario (Puerto 8001)
+  inventario-service:
+    build: 
+      context: ./servicio_inventario
+      dockerfile: DockerFile  # Nota: el archivo se llama DockerFile (con F mayúscula)
+    container_name: rep_drill_inventario
+    environment:
+      - SECRET_KEY=django-insecure-54)3sn^7k9btm5@h=ukrvve+#g&tnad=8@r6sxvk3r)zno59!b
+      - DATABASE_DB=rep_drill
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=root
+      - DATABASE_SERVER=postgres
+      - DATABASE_PORT=5432
+      - DEBUG=True
+      - ALLOWED_HOSTS=localhost,127.0.0.1,inventario-service
+      - AUTH_SERVICE_URL=http://auth-service:8000
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    volumes:
+      - ./servicio_inventario:/app
+      - inventario_static:/app/staticfiles
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Servicio de Ventas (Puerto 8002)
+  ventas-service:
+    build: 
+      context: ./servicio_ventas
+      dockerfile: DockerFile  # Nota: el archivo se llama DockerFile (con F mayúscula)
+    container_name: rep_drill_ventas
+    environment:
+      - SECRET_KEY=django-insecure-54)3sn^7k9btm5@h=ukrvve+#g&tnad=8@r6sxvk3r)zno59!b
+      - DATABASE_DB=rep_drill
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=root
+      - DATABASE_SERVER=postgres
+      - DATABASE_PORT=5432
+      - DEBUG=True
+      - ALLOWED_HOSTS=localhost,127.0.0.1,ventas-service
+      - AUTH_SERVICE_URL=http://auth-service:8000
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    volumes:
+      - ./servicio_ventas:/app
+      - ventas_static:/app/staticfiles
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Gateway/Proxy (Opcional - usando Nginx)
+  nginx:
+    image: nginx:alpine
+    container_name: rep_drill_gateway
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - auth_static:/app/auth/staticfiles:ro
+      - personas_static:/app/personas/staticfiles:ro
+      - inventario_static:/app/inventario/staticfiles:ro
+      - ventas_static:/app/ventas/staticfiles:ro
+    depends_on:
+      - auth-service
+      - personas-service
+      - inventario-service
+      - ventas-service
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Herramientas de Desarrollo
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: rep_drill_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@rep-drill.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  auth_static:
+  auth_media:
+  personas_static:
+  inventario_static:
+  ventas_static:
+
+networks:
+  microservices-network:
+    driver: bridge
+    name: rep_drill_network

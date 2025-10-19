@@ -1,0 +1,139 @@
+services:
+  # Base de datos
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: rep_drill_db
+      POSTGRES_USER: usuario
+      POSTGRES_PASSWORD: contraseña
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - micro_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U usuario -d rep_drill_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Servicio de autenticación
+  auth:
+    build: ./backend/servicio_auth
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_auth.wsgi:application
+    volumes:
+      - ./backend/servicio_auth:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_DB=rep_drill_db
+      - DATABASE_USER=usuario
+      - DATABASE_PASSWORD=contraseña
+      - DATABASE_SERVER=db
+      - DATABASE_PORT=5432
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ALLOWED_HOSTS=*
+    networks:
+      - micro_net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Servicio de personas (clientes y proveedores)
+  personas:
+    build: ./backend/servicio_personas
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_personas.wsgi:application
+    volumes:
+      - ./backend/servicio_personas:/app
+    ports:
+      - "8003:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_DB=rep_drill_db
+      - DATABASE_USER=usuario
+      - DATABASE_PASSWORD=contraseña
+      - DATABASE_SERVER=db
+      - DATABASE_PORT=5432
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ALLOWED_HOSTS=*
+    networks:
+      - micro_net
+
+  # Servicio de inventario
+  inventario:
+    build: ./backend/servicio_inventario
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_inventario.wsgi:application
+    volumes:
+      - ./backend/servicio_inventario:/app
+    ports:
+      - "8002:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_DB=rep_drill_db
+      - DATABASE_USER=usuario
+      - DATABASE_PASSWORD=contraseña
+      - DATABASE_SERVER=db
+      - DATABASE_PORT=5432
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ALLOWED_HOSTS=*
+    networks:
+      - micro_net
+
+  # Servicio de ventas
+  ventas:
+    build: ./backend/servicio_ventas
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_ventas.wsgi:application
+    volumes:
+      - ./backend/servicio_ventas:/app
+    ports:
+      - "8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_DB=rep_drill_db
+      - DATABASE_USER=usuario
+      - DATABASE_PASSWORD=contraseña
+      - DATABASE_SERVER=db
+      - DATABASE_PORT=5432
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ALLOWED_HOSTS=*
+    networks:
+      - micro_net
+
+  # Frontend React
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - auth
+      - personas
+      - inventario
+      - ventas
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    networks:
+      - micro_net
+
+volumes:
+  postgres_data:
+
+networks:
+  micro_net:
