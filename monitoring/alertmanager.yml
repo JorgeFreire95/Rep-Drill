@@ -1,0 +1,88 @@
+global:
+  # SMTP configuration for email alerts
+  smtp_smarthost: '${SMTP_SERVER}:${SMTP_PORT}'
+  smtp_from: 'alertas@tudominio.com'
+  smtp_auth_username: '${SMTP_USER}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+# Templates for notifications
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Root route
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  routes:
+    # Critical alerts to email and Slack
+    - match:
+        severity: critical
+      receiver: 'critical'
+      continue: true
+    
+    # Warning alerts to Slack only
+    - match:
+        severity: warning
+      receiver: 'warning'
+
+# Notification receivers
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: 'admin@tudominio.com'
+        headers:
+          Subject: '[REP DRILL] {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>Alert: {{ .GroupLabels.alertname }}</h2>
+          <p><b>Severity:</b> {{ .CommonLabels.severity }}</p>
+          <p><b>Summary:</b> {{ .CommonAnnotations.summary }}</p>
+          <p><b>Description:</b> {{ .CommonAnnotations.description }}</p>
+          <p><b>Time:</b> {{ .StartsAt }}</p>
+
+  - name: 'critical'
+    email_configs:
+      - to: 'admin@tudominio.com,devops@tudominio.com'
+        headers:
+          Subject: '🚨 [CRITICAL] {{ .GroupLabels.alertname }}'
+        html: |
+          <h1 style="color: red;">🚨 CRITICAL ALERT</h1>
+          <h2>{{ .GroupLabels.alertname }}</h2>
+          <p><b>Summary:</b> {{ .CommonAnnotations.summary }}</p>
+          <p><b>Description:</b> {{ .CommonAnnotations.description }}</p>
+          <p><b>Time:</b> {{ .StartsAt }}</p>
+          <p><b>Action Required:</b> Immediate attention needed!</p>
+    
+    # Slack webhook (opcional)
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#alerts-critical'
+        title: '🚨 CRITICAL: {{ .CommonAnnotations.summary }}'
+        text: |
+          *Alert:* {{ .CommonLabels.alertname }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Time:* {{ .StartsAt }}
+
+  - name: 'warning'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#alerts-warning'
+        title: '⚠️ WARNING: {{ .CommonAnnotations.summary }}'
+        text: |
+          *Alert:* {{ .CommonLabels.alertname }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Time:* {{ .StartsAt }}
+
+# Inhibition rules
+inhibit_rules:
+  # Suppress warning alerts if critical alert is firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']

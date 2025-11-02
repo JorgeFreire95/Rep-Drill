@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estado de Tareas - Analytics</title>
+  <style>
+    body { 
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
+      padding: 24px; 
+      background: #f5f7fa;
+      color: #2c3e50;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    h1 { margin-top: 0; color: #2c3e50; }
+    .stats { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
+      gap: 16px; 
+      margin-bottom: 24px; 
+    }
+    .stat-card { 
+      background: white; 
+      padding: 16px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+    }
+    .stat-label { font-size: 12px; color: #7f8c8d; text-transform: uppercase; margin-bottom: 8px; }
+    .stat-value { font-size: 28px; font-weight: 600; }
+    .stat-card.success .stat-value { color: #27ae60; }
+    .stat-card.error .stat-value { color: #e74c3c; }
+    .stat-card.running .stat-value { color: #f39c12; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    th, td { padding: 12px; border-bottom: 1px solid #f1f3f5; text-align: left; font-size: 13px; }
+    th { background: #f8f9fa; font-weight: 600; color: #495057; text-transform: uppercase; letter-spacing: 0.5px; }
+    tr:hover { background: #f8f9fa; }
+    .status-success { color: #27ae60; font-weight: 600; }
+    .status-error { color: #e74c3c; font-weight: 600; }
+    .status-running { color: #f39c12; font-weight: 600; }
+    .toolbar { 
+      background: white; 
+      padding: 16px; 
+      border-radius: 8px; 
+      margin-bottom: 16px; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+    }
+    .toolbar form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    input, select { padding: 8px 12px; font-size: 14px; border: 1px solid #dcdde1; border-radius: 4px; }
+    button { 
+      padding: 8px 16px; 
+      background: #3498db; 
+      color: white; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      font-weight: 500;
+    }
+    button:hover { background: #2980b9; }
+    .task-name { font-family: monospace; font-size: 12px; color: #6c757d; }
+    .details-toggle { cursor: pointer; color: #3498db; font-size: 11px; text-decoration: underline; }
+    .details-content { display: none; background: #f8f9fa; padding: 8px; margin-top: 8px; border-radius: 4px; font-family: monospace; font-size: 11px; }
+    .details-content.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔄 Monitor de Tareas Programadas</h1>
+    
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">Total (24h)</div>
+        <div class="stat-value">{{ stats_24h.total }}</div>
+      </div>
+      <div class="stat-card success">
+        <div class="stat-label">Exitosas (24h)</div>
+        <div class="stat-value">{{ stats_24h.success }}</div>
+      </div>
+      <div class="stat-card error">
+        <div class="stat-label">Errores (24h)</div>
+        <div class="stat-value">{{ stats_24h.error }}</div>
+      </div>
+      <div class="stat-card running">
+        <div class="stat-label">En Ejecución</div>
+        <div class="stat-value">{{ stats_24h.running }}</div>
+      </div>
+    </div>
+    
+    <div class="toolbar">
+      <form method="get">
+        <label>Tarea:
+          <select name="task_name">
+            <option value="">Todas</option>
+            {% for name in task_names %}
+            <option value="{{ name }}" {% if task_name == name %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Estado:
+          <select name="status">
+            <option value="">Todos</option>
+            <option value="success" {% if status_filter == 'success' %}selected{% endif %}>Exitosa</option>
+            <option value="error" {% if status_filter == 'error' %}selected{% endif %}>Error</option>
+            <option value="running" {% if status_filter == 'running' %}selected{% endif %}>En ejecución</option>
+          </select>
+        </label>
+        <label>Límite:
+          <input type="number" name="limit" value="{{ limit }}" min="10" max="500" step="10" />
+        </label>
+        <button type="submit">Filtrar</button>
+        <a href="?" style="padding: 8px 16px; background: #95a5a6; color: white; text-decoration: none; border-radius: 4px;">Limpiar</a>
+      </form>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Tarea</th>
+          <th>Estado</th>
+          <th>Inicio</th>
+          <th>Fin</th>
+          <th>Duración</th>
+          <th>Detalles</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td>
+            <div class="task-name">{{ r.task_name }}</div>
+            {% if r.run_id %}
+            <div style="font-size: 10px; color: #adb5bd;">{{ r.run_id|truncatechars:16 }}</div>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.status == 'success' %}
+            <span class="status-success">✓ Exitosa</span>
+            {% elif r.status == 'error' %}
+            <span class="status-error">✗ Error</span>
+            {% elif r.status == 'running' %}
+            <span class="status-running">⟳ Ejecutando</span>
+            {% else %}
+            <span>{{ r.status }}</span>
+            {% endif %}
+          </td>
+          <td>{{ r.started_at|date:"Y-m-d H:i:s" }}</td>
+          <td>{% if r.finished_at %}{{ r.finished_at|date:"Y-m-d H:i:s" }}{% else %}<span style="color: #adb5bd;">-</span>{% endif %}</td>
+          <td>
+            {% if r.duration_ms > 0 %}
+            {{ r.duration_ms }}ms
+            {% else %}
+            <span style="color: #adb5bd;">-</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.error %}
+            <div style="color: #e74c3c; font-size: 11px; max-width: 300px; overflow: hidden; text-overflow: ellipsis;" title="{{ r.error }}">{{ r.error|truncatechars:40 }}</div>
+            {% endif %}
+            {% if r.details %}
+            <span class="details-toggle" onclick="toggleDetails('details-{{ r.id }}')">Ver detalles</span>
+            <div id="details-{{ r.id }}" class="details-content">
+              <pre style="white-space: pre-wrap; margin: 0;">{{ r.details|pprint }}</pre>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align: center; padding: 40px; color: #adb5bd;">No hay ejecuciones registradas</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    
+    <div style="text-align: center; padding: 16px; color: #7f8c8d; font-size: 13px;">
+      Mostrando últimas {{ runs|length }} ejecuciones
+      <a href="?" style="margin-left: 12px; padding: 6px 12px; background: #3498db; color: white; text-decoration: none; border-radius: 4px; font-size: 12px;">↻ Actualizar</a>
+    </div>
+  </div>
+  
+  <script>
+    function toggleDetails(id) {
+      const el = document.getElementById(id);
+      el.classList.toggle('show');
+    }
+    {% if stats_24h.running > 0 %}
+    setTimeout(() => window.location.reload(), 30000);
+    {% endif %}
+  </script>
+</body>
+</html>

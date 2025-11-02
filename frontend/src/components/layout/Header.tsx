@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Menu, LogOut, User, Settings } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+// HealthWidget removed per request to hide service status badges
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -37,6 +38,9 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             </h1>
           </div>
         </div>
+
+        {/* Center section intentionally left empty (removed health status badges) */}
+        <div className="hidden md:block" />
 
         {/* Right: User menu */}
         <div className="relative">

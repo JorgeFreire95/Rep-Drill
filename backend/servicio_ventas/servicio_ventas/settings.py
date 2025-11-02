@@ -24,12 +24,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # IMPORTANTE: Debe ser la misma SECRET_KEY que el servicio de autenticación
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure--gc*$+iz#y=bve4%z-vonvavwxsnn339^!khigwu(526$df!+$')
+SECRET_KEY = os.getenv('SECRET_KEY') or os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY or DJANGO_SECRET_KEY environment variable must be set in production")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -48,7 +50,7 @@ INSTALLED_APPS = [
     'health_check.db',
     'health_check.storage',
     'health_check.contrib.migrations',
-    'ventas',
+    'ventas.apps.VentasConfig',  # Cambiado para que registre los signals correctamente
     'corsheaders',
 ]
 
@@ -97,8 +99,26 @@ WSGI_APPLICATION = 'servicio_ventas.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
+DATABASES = {}
+
+# Soporte para DATABASE_URL (p. ej., postgres://user:pass@host:5432/db)
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    try:
+        import dj_database_url  # type: ignore
+        DATABASES['default'] = dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+    except Exception:
+        # Fallback a variables separadas si no está instalado o falla el parseo
+        DATABASES['default'] = {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DATABASE_DB'),
+            'USER': os.getenv('DATABASE_USER'),
+            'PASSWORD': os.getenv('DATABASE_PASSWORD'),
+            'HOST': os.getenv('DATABASE_SERVER'),
+            'PORT': os.getenv('DATABASE_PORT'),
+        }
+else:
+    DATABASES['default'] = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('DATABASE_DB'),
         'USER': os.getenv('DATABASE_USER'),
@@ -106,7 +126,6 @@ DATABASES = {
         'HOST': os.getenv('DATABASE_SERVER'),
         'PORT': os.getenv('DATABASE_PORT'),
     }
-}
 
 
 # Password validation
@@ -153,14 +172,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Configuración de CORS
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Para el uso del Frontend en desarrollo
-    "https://miaplicacion.com",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",  # Vite development server
+    "http://127.0.0.1:5173",
+    "http://localhost",
+    "http://localhost:80",
 ]
 
 # Permitir cookies en solicitudes CORS
 CORS_ALLOW_CREDENTIALS = True
 
-# Para desarrollo, permitir todos los orígenes
-CORS_ALLOW_ALL_ORIGINS = True
+# Para desarrollo, NO permitir todos los orígenes si CORS_ALLOW_CREDENTIALS es True
+CORS_ALLOW_ALL_ORIGINS = False
 
 # Configuración adicional para desarrollo
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
@@ -205,3 +228,60 @@ SPECTACULAR_SETTINGS = {
         'displayOperationId': True,
     },
 }
+
+# ===========================================
+# CONFIGURACIÓN DE MICROSERVICIOS
+# ===========================================
+
+# URL del servicio de inventario
+INVENTARIO_SERVICE_URL = os.getenv('INVENTARIO_SERVICE_URL', 'http://inventario:8000')
+
+# URL del servicio de personas
+PERSONAS_SERVICE_URL = os.getenv('PERSONAS_SERVICE_URL', 'http://personas:8000')
+
+# Timeout para requests entre servicios (en segundos)
+MICROSERVICE_REQUEST_TIMEOUT = 5
+
+# ===========================================
+# CONFIGURACIÓN DE LOGGING
+# ===========================================
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': 'ventas.log',
+            'maxBytes': 1024 * 1024 * 10,  # 10 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'ventas': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    },
+}
+

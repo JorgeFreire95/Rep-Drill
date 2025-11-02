@@ -25,12 +25,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # IMPORTANTE: Debe ser la misma SECRET_KEY que el servicio de autenticación
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-26smvszvx^(n#x0d7re+lvk%h%&4*p=7k)&*&tm!g&_t*dh0fb')
+SECRET_KEY = os.getenv('SECRET_KEY') or os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY or DJANGO_SECRET_KEY environment variable must be set in production")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -66,6 +68,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'inventario.middleware.CurrentActorMiddleware',
 ]
 
 ROOT_URLCONF = 'servicio_inventario.urls'
@@ -125,9 +128,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-es'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Santiago'
 
 USE_I18N = True
 
@@ -147,14 +150,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Configuración de CORS
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Para el uso del Frontend en desarrollo
-    "https://miaplicacion.com",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",  # Vite development server
+    "http://127.0.0.1:5173",
+    "http://localhost",
+    "http://localhost:80",
 ]
 
 # Permitir cookies en solicitudes CORS
 CORS_ALLOW_CREDENTIALS = True
 
-# Para desarrollo, permitir todos los orígenes
-CORS_ALLOW_ALL_ORIGINS = True
+# Para desarrollo, NO permitir todos los orígenes si CORS_ALLOW_CREDENTIALS es True
+CORS_ALLOW_ALL_ORIGINS = False
 
 # Configuración adicional para desarrollo
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']

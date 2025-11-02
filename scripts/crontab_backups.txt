@@ -1,0 +1,11 @@
+# Crontab para backups automáticos
+# Agregar a crontab con: crontab -e
+
+# Backup diario a las 2 AM
+0 2 * * * cd /path/to/rep_drill && bash scripts/backup_database.sh >> logs/backup.log 2>&1
+
+# Backup cada 6 horas (en horario laboral)
+0 8,12,18,22 * * * cd /path/to/rep_drill && bash scripts/backup_database.sh >> logs/backup.log 2>&1
+
+# Limpiar logs antiguos cada semana
+0 0 * * 0 find /path/to/rep_drill/logs -name "*.log" -type f -mtime +30 -delete

@@ -1,6 +1,12 @@
 from rest_framework import serializers
 from .models import Order, OrderDetails, Shipment, Payment
 from decimal import Decimal
+import logging
+
+from .service_client import RobustServiceClient
+from .events import EventPublisher
+
+logger = logging.getLogger(__name__)
 
 
 class OrderDetailsSerializer(serializers.ModelSerializer):
@@ -14,8 +20,39 @@ class OrderDetailCreateSerializer(serializers.Serializer):
     """Serializer para crear detalles de orden anidados"""
     product_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
-    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2)
-    discount = serializers.DecimalField(max_digits=5, decimal_places=2, default=0)
+    unit_price = serializers.DecimalField(max_digits=12, decimal_places=0)  # CLP sin decimales
+    discount = serializers.DecimalField(max_digits=12, decimal_places=0, default=0)  # CLP sin decimales
+    
+    def validate(self, data):
+        """Validar que el producto tenga stock disponible"""
+        from .services import InventoryService
+        
+        product_id = data.get('product_id')
+        quantity = data.get('quantity')
+        
+        # Verificar disponibilidad del producto
+        availability = InventoryService.check_product_availability(product_id, quantity)
+        
+        if not availability.get('success'):
+            raise serializers.ValidationError({
+                'product_id': f"Error al verificar producto {product_id}: {availability.get('error')}"
+            })
+        
+        if not availability.get('available'):
+            current_stock = availability.get('current_quantity', 0)
+            product_name = availability.get('product_name', f'Producto #{product_id}')
+            
+            if current_stock == 0:
+                raise serializers.ValidationError({
+                    'product_id': f"{product_name} no tiene stock disponible. No se puede agregar a la orden."
+                })
+            else:
+                raise serializers.ValidationError({
+                    'quantity': f"{product_name} solo tiene {current_stock} unidades disponibles. "
+                                f"No se pueden agregar {quantity} unidades."
+                })
+        
+        return data
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -30,15 +67,27 @@ class OrderSerializer(serializers.ModelSerializer):
         read_only_fields = ('total',)
     
     def get_customer_name(self, obj):
-        """Obtener el nombre del cliente desde el servicio de personas"""
-        import requests
+        """
+        Obtener el nombre del cliente desde el servicio de personas.
+        Usa RobustServiceClient para garantizar conectividad confiable.
+        """
         try:
-            response = requests.get(f'http://localhost:8003/api/personas/{obj.customer_id}/', timeout=2)
-            if response.status_code == 200:
-                customer_data = response.json()
+            client = RobustServiceClient(base_url='http://personas:8000', service_name='personas')
+            response = client.get(f'/api/personas/{obj.customer_id}/')
+            
+            if response and response.get('success') is not False:
+                customer_data = response.get('data', {}) if isinstance(response, dict) else response
                 return customer_data.get('nombre', f'Cliente #{obj.customer_id}')
-        except:
-            pass
+            else:
+                error_msg = response.get('error', 'Unknown error') if isinstance(response, dict) else 'Connection failed'
+                logger.warning(
+                    f"Error obteniendo cliente {obj.customer_id}: {error_msg}"
+                )
+        except Exception as e:
+            logger.error(
+                f"Excepción obteniendo nombre de cliente {obj.customer_id}: {str(e)}"
+            )
+        
         return f'Cliente #{obj.customer_id}'
     
     def create(self, validated_data):
@@ -70,10 +119,29 @@ class OrderSerializer(serializers.ModelSerializer):
                 discount=detail_data.get('discount', 0)
             )
         
+        # Publicar evento de orden creada
+        try:
+            publisher = EventPublisher()
+            publisher.publish_order_created(
+                order_id=order.id,
+                customer_id=order.customer_id,
+                total=float(order.total),
+                details_count=len(details_data)
+            )
+            logger.info(f"Evento 'order.created' publicado para orden #{order.id}")
+        except Exception as e:
+            logger.error(
+                f"Error publicando evento de orden creada {order.id}: {str(e)}"
+            )
+            # No fallar la creación de la orden si hay error en eventos
+        
         return order
     
     def update(self, instance, validated_data):
         details_data = validated_data.pop('details', None)
+        
+        # Guardar estado anterior para detectar cambios
+        old_status = instance.status
         
         # Actualizar campos de la orden
         for attr, value in validated_data.items():
@@ -105,6 +173,41 @@ class OrderSerializer(serializers.ModelSerializer):
                 )
         
         instance.save()
+        
+        # Publicar evento si hubo cambio de estado
+        if old_status != instance.status:
+            try:
+                publisher = EventPublisher()
+                
+                if instance.status == 'COMPLETED':
+                    publisher.publish_order_completed(
+                        order_id=instance.id,
+                        customer_id=instance.customer_id,
+                        total=float(instance.total)
+                    )
+                    logger.info(f"Evento 'order.completed' publicado para orden #{instance.id}")
+                
+                elif instance.status == 'CANCELLED':
+                    publisher.publish_order_cancelled(
+                        order_id=instance.id,
+                        customer_id=instance.customer_id,
+                        reason='Order updated to cancelled status'
+                    )
+                    logger.info(f"Evento 'order.cancelled' publicado para orden #{instance.id}")
+                
+                else:
+                    publisher.publish_order_updated(
+                        order_id=instance.id,
+                        customer_id=instance.customer_id,
+                        status=instance.status
+                    )
+                    logger.info(f"Evento 'order.updated' publicado para orden #{instance.id}")
+                    
+            except Exception as e:
+                logger.error(
+                    f"Error publicando evento de actualización de orden {instance.id}: {str(e)}"
+                )
+        
         return instance
 
 
@@ -126,8 +229,14 @@ class PaymentSerializer(serializers.ModelSerializer):
         # El método save() del modelo se encargará de establecerlo
         if 'payment_date' in validated_data and validated_data['payment_date'] is None:
             validated_data.pop('payment_date')
-        print(f"DEBUG - Creating payment with data: {validated_data}")
-        return super().create(validated_data)
+        logger.info(f"DEBUG - Creating payment with data: {validated_data}")
+        try:
+            payment = super().create(validated_data)
+            logger.info(f"DEBUG - Payment created successfully: {payment}")
+            return payment
+        except Exception as e:
+            logger.error(f"ERROR creating payment: {str(e)}", exc_info=True)
+            raise
     
     def validate_order(self, value):
         """
@@ -154,20 +263,28 @@ class PaymentSerializer(serializers.ModelSerializer):
         amount = data.get('amount')
         
         if order and amount:
-            from decimal import Decimal
-            total_paid = Decimal(str(order.get_total_paid()))
-            order_total = Decimal(str(order.total))
-            payment_amount = Decimal(str(amount))
-            remaining = order_total - total_paid
-            
-            # Permitir un margen de error de 0.01 por redondeos
-            if payment_amount > remaining + Decimal('0.01'):
-                raise serializers.ValidationError({
-                    'amount': f'El monto excede lo pendiente de pago. '
-                              f'Total de la orden: ${float(order_total)}, '
-                              f'Ya pagado: ${float(total_paid)}, '
-                              f'Pendiente: ${float(remaining)}'
-                })
+            try:
+                from decimal import Decimal
+                total_paid = Decimal(str(order.get_total_paid()))
+                order_total = Decimal(str(order.total))
+                payment_amount = Decimal(str(amount))
+                remaining = order_total - total_paid
+                
+                # Permitir un margen de error de 0.01 por redondeos
+                if payment_amount > remaining + Decimal('0.01'):
+                    raise serializers.ValidationError({
+                        'amount': f'El monto excede lo pendiente de pago. '
+                                  f'Total de la orden: ${float(order_total)}, '
+                                  f'Ya pagado: ${float(total_paid)}, '
+                                  f'Pendiente: ${float(remaining)}'
+                    })
+            except serializers.ValidationError:
+                # Re-levantar errores de validación sin capturarlos
+                raise
+            except Exception as e:
+                logger.error(f"Error inesperado en validación de monto de pago: {str(e)}", exc_info=True)
+                # Si falla la validación por otro error, permitir continuar
+                pass
         
         return data
 

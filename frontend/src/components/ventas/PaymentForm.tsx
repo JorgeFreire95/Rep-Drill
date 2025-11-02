@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
 import type { Payment, Order } from '../../types';
 import { Button } from '../common';
 import { ventasService } from '../../services/ventasService';
+import { formatCLP } from '../../utils/currencyUtils';
 
 interface PaymentFormProps {
   payment?: Payment;
@@ -43,7 +45,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
       );
       setOrders(payableOrders);
     } catch (error) {
-      console.error('Error cargando órdenes:', error);
+      logger.error('Error cargando órdenes:', error);
     } finally {
       setLoadingOrders(false);
     }
@@ -88,7 +90,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
     try {
       await onSubmit(formData);
     } catch (error) {
-      console.error('Error al guardar pago:', error);
+      logger.error('Error al guardar pago:', error);
     }
   };
 
@@ -111,7 +113,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
           ) : (
             orders.map(order => (
               <option key={order.id} value={order.id}>
-                Orden #{order.id} - Cliente #{order.customer_id} - Total: ${Number(order.total).toLocaleString('es-CL')} - Estado: {order.status}
+                Orden #{order.id} - Cliente #{order.customer_id} - Total: {formatCLP(order.total)} - Estado: {order.status}
               </option>
             ))
           )}
@@ -122,7 +124,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
         {selectedOrder && (
           <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-900 font-semibold">
-              Total de la orden: ${parseFloat(selectedOrder.total.toString()).toLocaleString('es-CL')}
+              Total de la orden: {formatCLP(selectedOrder.total)}
             </p>
             <p className="text-sm text-blue-800 mt-1">
               Estado: {selectedOrder.status}
@@ -153,7 +155,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
         {selectedOrder && parseFloat(formData.amount) > 0 && (
           <p className="text-sm text-gray-600 mt-1">
             {parseFloat(formData.amount) < parseFloat(selectedOrder.total.toString())
-              ? `Pago parcial: $${parseFloat(formData.amount).toLocaleString('es-CL')} de $${parseFloat(selectedOrder.total.toString()).toLocaleString('es-CL')}`
+              ? `Pago parcial: ${formatCLP(formData.amount)} de ${formatCLP(selectedOrder.total)}`
               : parseFloat(formData.amount) === parseFloat(selectedOrder.total.toString())
               ? '✅ Pago completo'
               : '⚠️ El monto excede el total de la orden'}

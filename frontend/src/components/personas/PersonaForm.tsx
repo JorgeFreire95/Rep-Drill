@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Persona, PersonaFormData } from '../../types';
 import { Input, Button } from '../common';
+import { logger } from '../../utils/logger';
 
 interface PersonaFormProps {
   persona?: Persona;
@@ -68,7 +69,7 @@ export const PersonaForm: React.FC<PersonaFormProps> = ({
     try {
       await onSubmit(formData);
     } catch (error) {
-      console.error('Error al guardar persona:', error);
+      logger.error('Error al guardar persona:', error);
     }
   };
 

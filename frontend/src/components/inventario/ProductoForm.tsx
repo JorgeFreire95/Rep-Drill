@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import type { Product, Category, ProductFormData } from '../../types';
+﻿import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
+import type { Product, Category, ProductFormData, Warehouse } from '../../types';
 import { Input, Button } from '../common';
 import { inventarioService } from '../../services/inventarioService';
+import { suppliersService, type Supplier } from '../../services/suppliersService';
 
 interface ProductoFormProps {
   producto?: Product;
@@ -19,6 +21,12 @@ const UNIDADES_MEDIDA = [
   { value: 'PQ', label: 'Paquete' },
 ];
 
+const ESTADOS_PRODUCTO = [
+  { value: 'ACTIVE', label: 'Activo' },
+  { value: 'INACTIVE', label: 'Inactivo' },
+  { value: 'DISCONTINUED', label: 'Descontinuado' },
+];
+
 export const ProductoForm: React.FC<ProductoFormProps> = ({
   producto,
   onSubmit,
@@ -26,23 +34,34 @@ export const ProductoForm: React.FC<ProductoFormProps> = ({
   isLoading = false,
 }) => {
   const [categorias, setCategorias] = useState<Category[]>([]);
+  const [bodegas, setBodegas] = useState<Warehouse[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loadingCategorias, setLoadingCategorias] = useState(false);
+  const [loadingBodegas, setLoadingBodegas] = useState(false);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
 
   const [formData, setFormData] = useState<ProductFormData>({
     name: producto?.name || '',
     description: producto?.description || '',
     sku: producto?.sku || '',
     category: producto?.category || null,
+    supplier: producto?.supplier || null,
+    warehouse: producto?.warehouse || null,
+    cost_price: producto?.cost_price || 0,
     price: producto?.price || 0,
     unit_of_measure: producto?.unit_of_measure || 'UND',
     quantity: producto?.quantity || 0,
     min_stock: producto?.min_stock || 0,
+    reorder_quantity: producto?.reorder_quantity || 10,
+    status: producto?.status || 'ACTIVE',
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof ProductFormData, string>>>({});
 
   useEffect(() => {
     loadCategorias();
+    loadBodegas();
+    loadSuppliers();
   }, []);
 
   const loadCategorias = async () => {
@@ -51,9 +70,33 @@ export const ProductoForm: React.FC<ProductoFormProps> = ({
       const data = await inventarioService.getCategories();
       setCategorias(data);
     } catch (error) {
-      console.error('Error al cargar categorías:', error);
+      logger.error('Error al cargar categorías:', error);
     } finally {
       setLoadingCategorias(false);
+    }
+  };
+
+  const loadBodegas = async () => {
+    setLoadingBodegas(true);
+    try {
+      const data = await inventarioService.getWarehouses();
+      setBodegas(data);
+    } catch (error) {
+      logger.error('Error al cargar bodegas:', error);
+    } finally {
+      setLoadingBodegas(false);
+    }
+  };
+
+  const loadSuppliers = async () => {
+    setLoadingSuppliers(true);
+    try {
+      const data = await suppliersService.list();
+      setSuppliers(data);
+    } catch (error) {
+      logger.error('Error al cargar proveedores:', error);
+    } finally {
+      setLoadingSuppliers(false);
     }
   };
 
@@ -68,8 +111,16 @@ export const ProductoForm: React.FC<ProductoFormProps> = ({
       newErrors.sku = 'El SKU es requerido';
     }
 
+    if (formData.cost_price < 0) {
+      newErrors.cost_price = 'El precio de costo no puede ser negativo';
+    }
+
     if (formData.price <= 0) {
-      newErrors.price = 'El precio debe ser mayor a 0';
+      newErrors.price = 'El precio de venta debe ser mayor a 0';
+    }
+
+    if (formData.cost_price > formData.price) {
+      newErrors.price = 'El precio de venta debe ser mayor al costo';
     }
 
     if (formData.quantity < 0) {
@@ -78,6 +129,10 @@ export const ProductoForm: React.FC<ProductoFormProps> = ({
 
     if (formData.min_stock < 0) {
       newErrors.min_stock = 'El stock mínimo no puede ser negativo';
+    }
+
+    if (formData.reorder_quantity < 0) {
+      newErrors.reorder_quantity = 'La cantidad de reorden no puede ser negativa';
     }
 
     setErrors(newErrors);
@@ -94,20 +149,30 @@ export const ProductoForm: React.FC<ProductoFormProps> = ({
     try {
       await onSubmit(formData);
     } catch (error) {
-      console.error('Error al guardar producto:', error);
+      logger.error('Error al guardar producto:', error);
     }
   };
 
-  const handleChange = (field: keyof ProductFormData, value: any) => {
+  const handleChange = (field: keyof ProductFormData, value: string | number | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
+  // Calcular margen de ganancia en tiempo real
+  const profitMargin = formData.cost_price > 0 
+    ? (((formData.price - formData.cost_price) / formData.cost_price) * 100).toFixed(2)
+    : '0.00';
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Información básica */}
+        <div className="md:col-span-2">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Información Básica</h3>
+        </div>
+        
         <div className="md:col-span-2">
           <Input
             label="Nombre del producto *"
@@ -126,8 +191,25 @@ export const ProductoForm: React.FC<ProductoFormProps> = ({
             onChange={(e) => handleChange('sku', e.target.value)}
             error={errors.sku}
             placeholder="Ej: LAP-DELL-001"
-            disabled={isLoading}
+            disabled={isLoading || !!producto}
+            title={producto ? 'El SKU no se puede modificar' : ''}
           />
+        </div>
+
+        <div>
+          <label className="label">Estado *</label>
+          <select
+            className="input"
+            value={formData.status}
+            onChange={(e) => handleChange('status', e.target.value)}
+            disabled={isLoading}
+          >
+            {ESTADOS_PRODUCTO.map((estado) => (
+              <option key={estado.value} value={estado.value}>
+                {estado.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
@@ -151,17 +233,93 @@ export const ProductoForm: React.FC<ProductoFormProps> = ({
         </div>
 
         <div>
+          <label className="label">Proveedor</label>
+          <select
+            className="input"
+            value={formData.supplier || ''}
+            onChange={(e) => handleChange('supplier', e.target.value ? Number(e.target.value) : null)}
+            disabled={isLoading || loadingSuppliers}
+          >
+            <option value="">Sin proveedor</option>
+            {suppliers.map((supplier) => (
+              <option key={supplier.id} value={supplier.id}>
+                {supplier.name}
+              </option>
+            ))}
+          </select>
+          {loadingSuppliers && (
+            <p className="text-xs text-gray-500 mt-1">Cargando proveedores...</p>
+          )}
+        </div>
+
+        {/* Precios */}
+        <div className="md:col-span-2">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2 mt-4">Precios (CLP)</h3>
+        </div>
+
+        <div>
           <Input
-            label="Precio ($) *"
+            label="Precio de Costo (CLP)"
             type="number"
-            step="0.01"
+            step="1"
             min="0"
-            value={formData.price}
-            onChange={(e) => handleChange('price', parseFloat(e.target.value) || 0)}
-            error={errors.price}
-            placeholder="0.00"
+            value={formData.cost_price}
+            onChange={(e) => handleChange('cost_price', parseInt(e.target.value) || 0)}
+            error={errors.cost_price}
+            placeholder="0"
             disabled={isLoading}
           />
+        </div>
+
+        <div>
+          <Input
+            label="Precio de Venta (CLP) *"
+            type="number"
+            step="1"
+            min="0"
+            value={formData.price}
+            onChange={(e) => handleChange('price', parseInt(e.target.value) || 0)}
+            error={errors.price}
+            placeholder="0"
+            disabled={isLoading}
+          />
+        </div>
+
+        {formData.cost_price > 0 && formData.price > 0 && (
+          <div className="md:col-span-2">
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800">
+                <span className="font-semibold">Margen de ganancia:</span> {profitMargin}%
+                {' '}·{' '}
+                <span className="font-semibold">Utilidad por unidad:</span> ${(formData.price - formData.cost_price).toLocaleString('es-CL')}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Stock */}
+        <div className="md:col-span-2">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2 mt-4">Gestión de Stock</h3>
+        </div>
+
+        <div>
+          <label className="label">Bodega</label>
+          <select
+            className="input"
+            value={formData.warehouse || ''}
+            onChange={(e) => handleChange('warehouse', e.target.value ? Number(e.target.value) : null)}
+            disabled={isLoading || loadingBodegas}
+          >
+            <option value="">Sin bodega</option>
+            {bodegas.map((bodega) => (
+              <option key={bodega.id} value={bodega.id}>
+                {bodega.name}
+              </option>
+            ))}
+          </select>
+          {loadingBodegas && (
+            <p className="text-xs text-gray-500 mt-1">Cargando bodegas...</p>
+          )}
         </div>
 
         <div>
@@ -204,10 +362,30 @@ export const ProductoForm: React.FC<ProductoFormProps> = ({
             placeholder="0"
             disabled={isLoading}
           />
+          <p className="text-xs text-gray-500 mt-1">Se generará alerta cuando el stock sea menor o igual a este valor</p>
+        </div>
+
+        <div>
+          <Input
+            label="Cantidad de reorden *"
+            type="number"
+            min="0"
+            value={formData.reorder_quantity}
+            onChange={(e) => handleChange('reorder_quantity', parseInt(e.target.value) || 0)}
+            error={errors.reorder_quantity}
+            placeholder="10"
+            disabled={isLoading}
+          />
+          <p className="text-xs text-gray-500 mt-1">Cantidad sugerida para reordenar cuando el stock esté bajo</p>
+        </div>
+
+        {/* Descripción */}
+        <div className="md:col-span-2">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2 mt-4">Descripción</h3>
         </div>
 
         <div className="md:col-span-2">
-          <label className="label">Descripción</label>
+          <label className="label">Descripción del producto</label>
           <textarea
             className="input min-h-[100px]"
             value={formData.description}

@@ -5,7 +5,11 @@ import type {
   Category, 
   CategoryFormData, 
   Product, 
-  ProductFormData 
+  ProductFormData,
+  LowStockResponse,
+  LowStockCountResponse,
+  ReorderRequest,
+  ReorderStatusHistory
 } from '../types';
 
 export const inventarioService = {
@@ -72,5 +76,50 @@ export const inventarioService = {
 
   deleteProduct: async (id: number): Promise<void> => {
     await apiClient.delete(`${API_URLS.INVENTARIO}/api/products/${id}/`);
+  },
+
+    // Stock Alerts
+    getLowStockProducts: async (): Promise<LowStockResponse> => {
+      const response = await apiClient.get(`${API_URLS.INVENTARIO}/api/products/low-stock/`);
+      return response.data;
+    },
+
+    getLowStockCount: async (): Promise<LowStockCountResponse> => {
+      const response = await apiClient.get(`${API_URLS.INVENTARIO}/api/products/low-stock/count/`);
+      return response.data;
+    },
+  
+  // Reorders
+  createReorder: async (productId: number, quantity?: number, notes?: string): Promise<ReorderRequest> => {
+    const payload: { product: number; quantity?: number; notes?: string } = { product: productId };
+    if (quantity && quantity > 0) payload.quantity = quantity;
+    if (notes) payload.notes = notes;
+    const response = await apiClient.post(`${API_URLS.INVENTARIO}/api/reorders/`, payload);
+    return response.data;
+  },
+  listReorders: async (): Promise<ReorderRequest[]> => {
+    const response = await apiClient.get(`${API_URLS.INVENTARIO}/api/reorders/`);
+    return response.data;
+  },
+  countRequestedReorders: async (): Promise<number> => {
+    const response = await apiClient.get(`${API_URLS.INVENTARIO}/api/reorders/`, { params: { status: 'requested' } });
+    const data = response.data;
+    return Array.isArray(data) ? data.length : 0;
+  },
+  markReorderOrdered: async (id: number): Promise<ReorderRequest> => {
+    const response = await apiClient.post(`${API_URLS.INVENTARIO}/api/reorders/${id}/mark_ordered/`, {});
+    return response.data;
+  },
+  markReorderReceived: async (id: number): Promise<ReorderRequest> => {
+    const response = await apiClient.post(`${API_URLS.INVENTARIO}/api/reorders/${id}/mark_received/`, {});
+    return response.data;
+  },
+  cancelReorder: async (id: number): Promise<ReorderRequest> => {
+    const response = await apiClient.post(`${API_URLS.INVENTARIO}/api/reorders/${id}/cancel/`, {});
+    return response.data;
+  },
+  getReorderHistory: async (id: number): Promise<ReorderStatusHistory[]> => {
+    const response = await apiClient.get(`${API_URLS.INVENTARIO}/api/reorders/${id}/history/`);
+    return response.data;
   },
 };

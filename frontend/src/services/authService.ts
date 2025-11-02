@@ -33,10 +33,36 @@ export const authService = {
         refresh: response.data.tokens.refresh,
         user,
       };
-    } catch (error: any) {
-      console.error('❌ Error en login:', error);
-      console.error('❌ Error response:', error.response?.data);
-      console.error('❌ Error status:', error.response?.status);
+    } catch (error: unknown) {
+      console.error('❌ Error en login (primer intento /auth/...):', error);
+      const resp = (error as { response?: { data?: unknown; status?: number } }).response;
+      const status = resp?.status;
+      if (status === 404) {
+        // Fallback: intentar ruta directa sin prefijo /auth
+        try {
+          console.warn('↪️ Reintentando login en /api/v1/auth/login/ (fallback sin /auth)');
+          const alt = await apiClient.post(`/api/v1/auth/login/`, {
+            email: credentials.username,
+            password: credentials.password,
+          });
+
+          localStorage.setItem('access_token', alt.data.tokens.access);
+          localStorage.setItem('refresh_token', alt.data.tokens.refresh);
+          const user = alt.data.user;
+          localStorage.setItem('user', JSON.stringify(user));
+          console.log('✅ Login exitoso por ruta alternativa');
+          return {
+            access: alt.data.tokens.access,
+            refresh: alt.data.tokens.refresh,
+            user,
+          };
+        } catch (fallbackErr) {
+          console.error('❌ Fallback de login también falló:', fallbackErr);
+          throw fallbackErr;
+        }
+      }
+      console.error('❌ Error response:', resp?.data);
+      console.error('❌ Error status:', status);
       throw error;
     }
   },
@@ -45,14 +71,14 @@ export const authService = {
    * Registrar nuevo usuario
    */
   register: async (data: RegisterData): Promise<AuthResponse> => {
-    const response = await apiClient.post(`${API_URLS.AUTH}/api/register/`, data);
+    const response = await apiClient.post(`${API_URLS.AUTH}/api/v1/auth/register/`, data);
     
     // Auto-login después del registro
     if (response.data.access && response.data.refresh) {
       localStorage.setItem('access_token', response.data.access);
       localStorage.setItem('refresh_token', response.data.refresh);
       
-      const userResponse = await apiClient.get(`${API_URLS.AUTH}/api/user/`);
+      const userResponse = await apiClient.get(`${API_URLS.AUTH}/api/v1/auth/profile/`);
       const user = userResponse.data;
       
       localStorage.setItem('user', JSON.stringify(user));
@@ -79,7 +105,7 @@ export const authService = {
    * Obtener usuario actual
    */
   getCurrentUser: async (): Promise<User> => {
-    const response = await apiClient.get(`${API_URLS.AUTH}/api/user/`);
+    const response = await apiClient.get(`${API_URLS.AUTH}/api/v1/auth/profile/`);
     return response.data;
   },
 
@@ -115,7 +141,7 @@ export const authService = {
       throw new Error('No refresh token available');
     }
     
-    const response = await apiClient.post(`${API_URLS.AUTH}/api/token/refresh/`, {
+    const response = await apiClient.post(`${API_URLS.AUTH}/api/v1/auth/token/refresh/`, {
       refresh: refreshToken,
     });
     

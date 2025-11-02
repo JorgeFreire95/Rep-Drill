@@ -25,12 +25,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-54)3sn^7k9btm5@h=ukrvve+#g&tnad=8@r6sxvk3r)zno59!b')
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable is required")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if os.getenv('ALLOWED_HOSTS') else ['localhost', '127.0.0.1']
 
 
 # Application definition
@@ -48,11 +50,11 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'drf_spectacular',
-    # Health Check
-    'health_check',
-    'health_check.db',
-    'health_check.storage',
-    'health_check.contrib.migrations',
+    # Health Check (disabled due to migration issues)
+    # 'health_check',
+    # 'health_check.db',
+    # 'health_check.storage',
+    # 'health_check.contrib.migrations',
     # Local apps
     'authentication',
 ]
@@ -248,13 +250,45 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 # CORS Configuration
+# En desarrollo, permitir todos los orígenes para evitar problemas con Docker y diferentes puertos
+CORS_ALLOW_ALL_ORIGINS = False  # Desactivado para usar lista específica con credentials
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # React development server
+    "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://localhost:5173",  # Vite development server
+    "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://miaplicacion.com",  # Production frontend
+    "http://localhost",
+    "http://localhost:80",
 ]
+CORS_ALLOW_CREDENTIALS = True  # Activado para autenticación con cookies/tokens
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# En producción, usar lista específica:
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",  # React development server
+#     "http://127.0.0.1:3000",
+#     "http://localhost:5173",  # Vite development server
+#     "http://127.0.0.1:5173",
+#     "https://miaplicacion.com",  # Production frontend
+# ]
 
 # Security Settings for Production
 if not DEBUG:

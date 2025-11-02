@@ -1,0 +1,407 @@
+/* OrderCreationForm Styles */
+
+.order-creation-form {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 24px;
+  padding: 24px;
+}
+
+.form-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+}
+
+.form-container h2 {
+  margin: 0 0 24px 0;
+  font-size: 24px;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.form-group select,
+.form-group input {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.form-group select:focus,
+.form-group input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-group select:disabled,
+.form-group input:disabled {
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Productos */
+.products-list {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fafafa;
+}
+
+.product-row {
+  display: grid;
+  grid-template-columns: 2fr 120px 120px 150px 40px;
+  gap: 12px;
+  padding: 12px;
+  align-items: center;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.product-row:last-child {
+  border-bottom: none;
+}
+
+.product-row select,
+.product-row input {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.product-row select:focus,
+.product-row input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background-color: white;
+}
+
+.product-subtotal {
+  font-size: 13px;
+  font-weight: 600;
+  color: #059669;
+  text-align: right;
+  padding: 0 8px;
+}
+
+.btn-remove {
+  padding: 4px 8px;
+  background-color: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-remove:hover:not(:disabled) {
+  background-color: #fecaca;
+}
+
+.btn-remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Agregar Producto */
+.btn-add-product {
+  padding: 10px 16px;
+  background-color: #dbeafe;
+  color: #0369a1;
+  border: 1px dashed #0284c7;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  margin-top: 12px;
+}
+
+.btn-add-product:hover:not(:disabled) {
+  background-color: #bfdbfe;
+  border-color: #0c63e4;
+}
+
+.btn-add-product:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Total */
+.total-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 2px solid #e5e7eb;
+}
+
+.total-row label {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.total-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #065f46;
+  text-align: right;
+}
+
+/* Estado de Evento */
+.event-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.event-status-publishing {
+  background-color: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+.event-status-published {
+  background-color: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+}
+
+.event-status-error {
+  background-color: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+}
+
+.event-icon {
+  font-size: 16px;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Error Message */
+.error-message {
+  padding: 12px 16px;
+  background-color: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  color: #991b1b;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Acciones */
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.btn-submit {
+  flex: 1;
+  padding: 12px 20px;
+  background-color: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background-color: #059669;
+  box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+}
+
+.btn-submit:disabled {
+  background-color: #d1d5db;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Órdenes Recientes */
+.recent-orders {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  height: fit-content;
+  position: sticky;
+  top: 20px;
+}
+
+.recent-orders h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: #1f2937;
+}
+
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.order-item {
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border-left: 3px solid #3b82f6;
+}
+
+.order-id {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.order-timestamp {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.order-status {
+  font-size: 12px;
+  font-weight: 600;
+  color: #10b981;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .order-creation-form {
+    grid-template-columns: 1fr;
+  }
+
+  .recent-orders {
+    position: static;
+  }
+
+  .product-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .order-creation-form {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .form-container {
+    padding: 16px;
+  }
+
+  .form-container h2 {
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+
+  .product-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .product-subtotal {
+    text-align: left;
+    padding: 0;
+  }
+
+  .btn-remove {
+    justify-self: start;
+    width: 100%;
+  }
+
+  .total-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .order-creation-form {
+    padding: 12px;
+  }
+
+  .form-container {
+    padding: 12px;
+  }
+
+  .form-container h2 {
+    font-size: 18px;
+  }
+
+  form {
+    gap: 16px;
+  }
+
+  .products-list {
+    font-size: 12px;
+  }
+
+  .product-row select,
+  .product-row input {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .btn-add-product {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .btn-submit {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  .recent-orders {
+    padding: 16px;
+  }
+
+  .event-status {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+}

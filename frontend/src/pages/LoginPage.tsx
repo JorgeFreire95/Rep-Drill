@@ -18,22 +18,19 @@ export const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('📤 Form submitted!', formData);
     setIsLoading(true);
 
     try {
-      console.log('🔑 Llamando a login...');
       await login(formData);
-      console.log('✅ Login exitoso, redirigiendo...');
       toast.success('¡Bienvenido a Rep Drill!');
       navigate('/');
-    } catch (error: any) {
-      console.error('❌ Login error:', error);
-      toast.error(
-        error.response?.data?.detail || 'Error al iniciar sesión. Verifica tus credenciales.'
-      );
+    } catch (error: unknown) {
+      // Extraer mensaje amigable si viene desde API (sin exponer detalles técnicos)
+      let message = 'Error al iniciar sesión. Verifica tus credenciales.';
+      const err = error as { response?: { data?: { detail?: string } } };
+      message = err?.response?.data?.detail || message;
+      toast.error(message);
     } finally {
-      console.log('📊 Loading finalizado');
       setIsLoading(false);
     }
   };
@@ -50,9 +47,16 @@ export const LoginPage: React.FC = () => {
           <p className="text-gray-600 mt-2">Gestión empresarial inteligente</p>
         </div>
 
+        {/* Info banner */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+          <p className="text-sm text-blue-800">
+            <strong>ℹ️ Acceso de empleados:</strong> Sistema disponible solo para empleados autorizados.
+          </p>
+        </div>
+
         {/* Login form */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Iniciar Sesión</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Iniciar Sesión de Empleado</h2>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
@@ -98,11 +102,10 @@ export const LoginPage: React.FC = () => {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-gray-600">
-            ¿No tienes una cuenta?{' '}
-            <Link to="/registro" className="text-primary-600 hover:text-primary-700 font-medium">
-              Regístrate aquí
-            </Link>
+          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-xs text-amber-800 text-center">
+              Si no tienes acceso al sistema, contacta a tu administrador.
+            </p>
           </div>
         </div>
 

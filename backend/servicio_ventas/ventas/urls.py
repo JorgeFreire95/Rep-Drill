@@ -5,7 +5,11 @@ from .views import (
     OrderDetailsViewSet,
     ShipmentViewSet,
     PaymentViewSet,
-    dashboard_stats
+    dashboard_stats,
+    check_product_availability,
+    process_order_payment_manually,
+    order_payment_status,
+    validate_stock
 )
 
 router = DefaultRouter()
@@ -17,4 +21,9 @@ router.register(r'payments', PaymentViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     path('dashboard/stats/', dashboard_stats, name='dashboard-stats'),
+    path('check-availability/', check_product_availability, name='check-availability'),
+    path('validate-stock/', validate_stock, name='validate-stock'),
+    path('orders/<int:order_id>/process-payment/', process_order_payment_manually, name='process-payment'),
+    path('orders/<int:order_id>/payment-status/', order_payment_status, name='payment-status'),
 ]
+

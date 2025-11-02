@@ -19,6 +19,7 @@ from .views import (
     check_permission,
     health_check,
     token_interface,
+    create_employee_user,
 )
 
 # Create router for ViewSets
@@ -38,6 +39,9 @@ urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),
+    
+    # ✅ NUEVO: Admin puede crear empleados
+    path('create-employee/', create_employee_user, name='create-employee'),
     
     # JWT Token endpoints
     path('token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),

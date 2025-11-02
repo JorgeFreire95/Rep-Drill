@@ -2,6 +2,7 @@ import React from 'react';
 import { Edit, Trash2, ShoppingCart, Package, CheckCircle, XCircle } from 'lucide-react';
 import type { Order } from '../../types';
 import { Button } from '../common';
+import { formatCLP } from '../../utils/currencyUtils';
 
 interface OrdersTableProps {
   orders: Order[];
@@ -49,12 +50,12 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-CL', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    });
+    // Extraer la fecha sin convertir a Date para evitar problemas de zona horaria
+    const datePart = dateString.split('T')[0]; // "2025-10-19"
+    const [year, month, day] = datePart.split('-');
+    
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
   };
 
   return (
@@ -104,7 +105,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right">
                   <div className="text-sm font-medium text-gray-900">
-                    $ {Number(order.total).toLocaleString('es-CL')}
+                    {formatCLP(order.total)}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -120,6 +121,8 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                       size="sm"
                       onClick={() => onEdit(order)}
                       icon={<Edit className="h-4 w-4" />}
+                      disabled={order.status === 'COMPLETED'}
+                      className={order.status === 'COMPLETED' ? 'opacity-50 cursor-not-allowed' : ''}
                     >
                       Editar
                     </Button>

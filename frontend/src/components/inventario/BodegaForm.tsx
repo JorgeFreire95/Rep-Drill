@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
+import { logger } from '../../utils/logger';
 import type { Warehouse, WarehouseFormData } from '../../types';
 import { Input, Button } from '../common';
 
@@ -44,7 +45,7 @@ export const BodegaForm: React.FC<BodegaFormProps> = ({
     try {
       await onSubmit(formData);
     } catch (error) {
-      console.error('Error al guardar bodega:', error);
+      logger.error('Error al guardar bodega:', error);
     }
   };
 

@@ -9,6 +9,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate, login, logout
 from django.utils import timezone
 from django.db.models import Q
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from datetime import timedelta
 
 from .models import User, Role, Permission, UserSession
@@ -34,34 +36,22 @@ from .permissions import IsOwnerOrAdmin, IsAdminUser
 
 class RegisterView(generics.CreateAPIView):
     """
-    View for user registration
+    View for user registration - DISABLED
+    ❌ Registration is now disabled. Only employees can access the system.
+    ❌ Only admin can create new employee users.
     """
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
     permission_classes = [permissions.AllowAny]
     
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        
-        # Generate tokens for the new user
-        refresh = RefreshToken.for_user(user)
-        
-        return Response({
-            'message': 'Usuario registrado exitosamente',
-            'user': {
-                'id': user.id,
-                'email': user.email,
-                'full_name': user.full_name,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
+        return Response(
+            {
+                'error': 'Registro deshabilitado',
+                'detail': 'El registro de usuarios está deshabilitado. Solo acceso de empleados autorizados. Contacte al administrador si requiere crear un nuevo usuario.'
             },
-            'tokens': {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
-        }, status=status.HTTP_201_CREATED)
+            status=status.HTTP_403_FORBIDDEN
+        )
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -104,6 +94,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         return ip
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     """
     View for user login (alternative to TokenObtainPairView)
@@ -115,6 +106,18 @@ class LoginView(APIView):
         serializer.is_valid(raise_exception=True)
         
         user = serializer.validated_data['user']
+        
+        # ✅ VALIDAR QUE SEA EMPLEADO
+        # El usuario debe tener un rol de empleado (admin, manager, employee)
+        if not user.role or user.role.name not in ['admin', 'manager', 'employee']:
+            return Response(
+                {
+                    'error': 'Acceso denegado',
+                    'detail': 'Los clientes no tienen acceso al sistema. Solo empleados autorizados pueden acceder.'
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
         refresh = RefreshToken.for_user(user)
         
         # Track user session
@@ -402,6 +405,83 @@ def user_permissions(request):
         'permissions': permissions,
         'is_superuser': user.is_superuser
     })
+
+
+# ✅ NUEVO ENDPOINT: Solo admin puede crear empleados
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def create_employee_user(request):
+    """
+    ✅ Create a new employee user (ONLY ADMIN can do this)
+    
+    Request body:
+    {
+        "email": "vendedor@repdrill.com",
+        "password": "temporal123",
+        "first_name": "Juan",
+        "last_name": "Pérez",
+        "role": "employee"  # or "manager", "admin"
+    }
+    """
+    try:
+        email = request.data.get('email')
+        password = request.data.get('password')
+        first_name = request.data.get('first_name', '')
+        last_name = request.data.get('last_name', '')
+        role_name = request.data.get('role', 'employee')
+        
+        # Validar datos requeridos
+        if not email or not password:
+            return Response(
+                {'error': 'email y password son requeridos'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validar rol
+        if role_name not in ['admin', 'manager', 'employee']:
+            return Response(
+                {'error': f'Rol inválido. Debe ser: admin, manager o employee'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar que el usuario no exista
+        if User.objects.filter(email=email).exists():
+            return Response(
+                {'error': 'El usuario con este email ya existe'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obtener o crear el rol
+        role, _ = Role.objects.get_or_create(name=role_name)
+        
+        # Crear usuario
+        user = User.objects.create_user(
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            role=role,
+            is_active=True,
+            is_staff=True if role_name in ['admin', 'manager'] else False,
+        )
+        
+        return Response({
+            'message': 'Empleado creado exitosamente',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'full_name': user.full_name,
+                'role': user.role.name if user.role else None,
+            }
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 @api_view(['GET'])

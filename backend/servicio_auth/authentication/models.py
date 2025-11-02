@@ -46,8 +46,6 @@ class Role(models.Model):
         ('admin', 'Administrador'),
         ('manager', 'Gerente'),
         ('employee', 'Empleado'),
-        ('customer', 'Cliente'),
-        ('supplier', 'Proveedor'),
     ]
     
     name = models.CharField(
@@ -95,7 +93,6 @@ class Permission(models.Model):
         ('users', 'Usuarios'),
         ('customers', 'Clientes'),
         ('employees', 'Empleados'),
-        ('suppliers', 'Proveedores'),
         ('products', 'Productos'),
         ('inventory', 'Inventario'),
         ('sales', 'Ventas'),

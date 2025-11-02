@@ -48,12 +48,6 @@ services:
       - ./servicio_auth:/app
       - auth_static:/app/staticfiles
       - auth_media:/app/media
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/auth/health/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
     networks:
       - microservices-network
     restart: unless-stopped
@@ -122,7 +116,7 @@ services:
   ventas-service:
     build: 
       context: ./servicio_ventas
-      dockerfile: DockerFile  # Nota: el archivo se llama DockerFile (con F mayúscula)
+      dockerfile: Dockerfile
     container_name: rep_drill_ventas
     environment:
       - SECRET_KEY=django-insecure-54)3sn^7k9btm5@h=ukrvve+#g&tnad=8@r6sxvk3r)zno59!b
@@ -148,6 +142,129 @@ services:
       - microservices-network
     restart: unless-stopped
 
+  # Redis (para Celery)
+  redis:
+    image: redis:7-alpine
+    container_name: rep_drill_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Servicio de Analytics (Puerto 8005)
+  analytics-service:
+    build: 
+      context: ./servicio_analytics
+      dockerfile: Dockerfile
+    container_name: rep_drill_analytics
+    environment:
+      - SECRET_KEY=django-insecure-analytics-dev-key-change-in-production
+      - DB_NAME=rep_drill
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DEBUG=True
+      - ALLOWED_HOSTS=localhost,127.0.0.1,analytics-service,analytics
+      - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://frontend:5173
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - AUTH_SERVICE_URL=http://auth-service:8000
+      - VENTAS_SERVICE_URL=http://ventas-service:8000
+      - INVENTARIO_SERVICE_URL=http://inventario-service:8000
+      - PERSONAS_SERVICE_URL=http://personas-service:8000
+      - ANALYTICS_RETENTION_DAYS=365
+      - ANALYTICS_CALCULATION_BATCH_SIZE=100
+    ports:
+      - "8005:8005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./servicio_analytics:/app
+      - analytics_static:/app/staticfiles
+      - analytics_media:/app/media
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Celery Worker para Analytics
+  analytics-celery-worker:
+    build: 
+      context: ./servicio_analytics
+      dockerfile: Dockerfile
+    container_name: rep_drill_analytics_worker
+    command: celery -A servicio_analytics worker --loglevel=info --concurrency=2
+    environment:
+      - SECRET_KEY=django-insecure-analytics-dev-key-change-in-production
+      - DB_NAME=rep_drill
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DEBUG=True
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - VENTAS_SERVICE_URL=http://ventas-service:8000
+      - INVENTARIO_SERVICE_URL=http://inventario-service:8000
+    depends_on:
+      - redis
+      - analytics-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./servicio_analytics:/app
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  # Celery Beat para tareas programadas de Analytics
+  analytics-celery-beat:
+    build: 
+      context: ./servicio_analytics
+      dockerfile: Dockerfile
+    container_name: rep_drill_analytics_beat
+    command: celery -A servicio_analytics beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    environment:
+      - SECRET_KEY=django-insecure-analytics-dev-key-change-in-production
+      - DB_NAME=rep_drill
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DEBUG=True
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - analytics-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./servicio_analytics:/app
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
   # Gateway/Proxy (Opcional - usando Nginx)
   nginx:
     image: nginx:alpine
@@ -161,11 +278,13 @@ services:
       - personas_static:/app/personas/staticfiles:ro
       - inventario_static:/app/inventario/staticfiles:ro
       - ventas_static:/app/ventas/staticfiles:ro
+      - analytics_static:/app/analytics/staticfiles:ro
     depends_on:
       - auth-service
       - personas-service
       - inventario-service
       - ventas-service
+      - analytics-service
     networks:
       - microservices-network
     restart: unless-stopped
@@ -188,11 +307,14 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   auth_static:
   auth_media:
   personas_static:
   inventario_static:
   ventas_static:
+  analytics_static:
+  analytics_media:
 
 networks:
   microservices-network:

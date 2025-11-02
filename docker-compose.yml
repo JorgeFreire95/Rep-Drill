@@ -1,11 +1,11 @@
 services:
   # Base de datos
   db:
-    image: postgres:15
+    image: postgres:15-alpine
     environment:
-      POSTGRES_DB: rep_drill_db
-      POSTGRES_USER: usuario
-      POSTGRES_PASSWORD: contraseña
+      POSTGRES_DB: ${DB_NAME:-rep_drill_db}
+      POSTGRES_USER: ${DB_USER:-usuario}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -13,10 +13,18 @@ services:
     networks:
       - micro_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U usuario -d rep_drill_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-usuario} -d ${DB_NAME:-rep_drill_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
   # Servicio de autenticación
   auth:
@@ -25,19 +33,20 @@ services:
     volumes:
       - ./backend/servicio_auth:/app
     ports:
-      - "8000:8000"
+      - "8001:8000"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      - DATABASE_DB=rep_drill_db
-      - DATABASE_USER=usuario
-      - DATABASE_PASSWORD=contraseña
+      - DATABASE_DB=${DB_NAME:-rep_drill_db}
+      - DATABASE_USER=${DB_USER:-usuario}
+      - DATABASE_PASSWORD=${DB_PASSWORD}
       - DATABASE_SERVER=db
       - DATABASE_PORT=5432
-      - DEBUG=True
-      - SECRET_KEY=dev-secret-key-change-in-production
-      - ALLOWED_HOSTS=*
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
     networks:
       - micro_net
     healthcheck:
@@ -48,72 +57,224 @@ services:
 
   # Servicio de personas (clientes y proveedores)
   personas:
-    build: ./backend/servicio_personas
+    build:
+      context: ./backend/servicio_personas
+      dockerfile: DockerFile
     command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_personas.wsgi:application
     volumes:
       - ./backend/servicio_personas:/app
+    ports:
+      - "8004:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_DB=${DB_NAME:-rep_drill_db}
+      - DATABASE_USER=${DB_USER:-usuario}
+      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - DATABASE_SERVER=db
+      - DATABASE_PORT=5432
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
+    networks:
+      - micro_net
+
+  # Servicio de inventario
+  inventario:
+    build:
+      context: ./backend/servicio_inventario
+      dockerfile: DockerFile
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_inventario.wsgi:application
+    volumes:
+      - ./backend/servicio_inventario:/app
     ports:
       - "8003:8000"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      - DATABASE_DB=rep_drill_db
-      - DATABASE_USER=usuario
-      - DATABASE_PASSWORD=contraseña
+      - DATABASE_DB=${DB_NAME:-rep_drill_db}
+      - DATABASE_USER=${DB_USER:-usuario}
+      - DATABASE_PASSWORD=${DB_PASSWORD}
       - DATABASE_SERVER=db
       - DATABASE_PORT=5432
-      - DEBUG=True
-      - SECRET_KEY=dev-secret-key-change-in-production
-      - ALLOWED_HOSTS=*
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
     networks:
       - micro_net
 
-  # Servicio de inventario
-  inventario:
-    build: ./backend/servicio_inventario
-    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_inventario.wsgi:application
+  # Servicio de ventas
+  ventas:
+    build:
+      context: ./backend/servicio_ventas
+      dockerfile: DockerFile
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_ventas.wsgi:application
     volumes:
-      - ./backend/servicio_inventario:/app
+      - ./backend/servicio_ventas:/app
     ports:
       - "8002:8000"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      - DATABASE_DB=rep_drill_db
-      - DATABASE_USER=usuario
-      - DATABASE_PASSWORD=contraseña
+      - DATABASE_DB=${DB_NAME:-rep_drill_db}
+      - DATABASE_USER=${DB_USER:-usuario}
+      - DATABASE_PASSWORD=${DB_PASSWORD}
       - DATABASE_SERVER=db
       - DATABASE_PORT=5432
-      - DEBUG=True
-      - SECRET_KEY=dev-secret-key-change-in-production
-      - ALLOWED_HOSTS=*
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${DJANGO_SECRET_KEY}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
+      - INVENTARIO_SERVICE_URL=http://inventario:8000
+      - PERSONAS_SERVICE_URL=http://personas:8000
     networks:
       - micro_net
 
-  # Servicio de ventas
-  ventas:
-    build: ./backend/servicio_ventas
-    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_ventas.wsgi:application
-    volumes:
-      - ./backend/servicio_ventas:/app
+  # Redis (Message Broker para Celery)
+  redis:
+    image: redis:7-alpine
+    container_name: rep_drill_redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     ports:
-      - "8001:8000"
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - micro_net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Servicio de Analytics
+  analytics:
+    build: ./backend/servicio_analytics
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_analytics.wsgi:application
+    container_name: rep_drill_analytics
+    environment:
+      - SECRET_KEY=${DJANGO_SECRET_KEY}
+      # Use the same signing key as the auth service so JWTs validate cross-service
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
+      - DB_NAME=${DB_NAME:-rep_drill_db}
+      - DB_USER=${DB_USER:-usuario}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DEBUG=${DEBUG:-False}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - AUTH_SERVICE_URL=http://auth:8000
+      - VENTAS_SERVICE_URL=http://ventas:8000
+      - INVENTARIO_SERVICE_URL=http://inventario:8000
+      - PERSONAS_SERVICE_URL=http://personas:8000
+      - ANALYTICS_RETENTION_DAYS=365
+      - ANALYTICS_CALCULATION_BATCH_SIZE=100
+    ports:
+      - "8005:8000"
     depends_on:
       db:
         condition: service_healthy
-    environment:
-      - DATABASE_DB=rep_drill_db
-      - DATABASE_USER=usuario
-      - DATABASE_PASSWORD=contraseña
-      - DATABASE_SERVER=db
-      - DATABASE_PORT=5432
-      - DEBUG=True
-      - SECRET_KEY=dev-secret-key-change-in-production
-      - ALLOWED_HOSTS=*
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/servicio_analytics:/app
+      - analytics_static:/app/staticfiles
+      - analytics_media:/app/media
     networks:
       - micro_net
+    restart: unless-stopped
+
+  # Celery Worker para Analytics
+  analytics_worker:
+    build: ./backend/servicio_analytics
+    command: celery -A servicio_analytics worker --loglevel=info --concurrency=2
+    container_name: rep_drill_analytics_worker
+    environment:
+      - SECRET_KEY=${DJANGO_SECRET_KEY}
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
+      - DB_NAME=${DB_NAME:-rep_drill_db}
+      - DB_USER=${DB_USER:-usuario}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DEBUG=${DEBUG:-False}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - VENTAS_SERVICE_URL=http://ventas:8000
+      - INVENTARIO_SERVICE_URL=http://inventario:8000
+    depends_on:
+      - redis
+      - analytics
+    volumes:
+      - ./backend/servicio_analytics:/app
+    networks:
+      - micro_net
+    restart: unless-stopped
+
+  # Celery Beat (Scheduler) para Analytics
+  analytics_beat:
+    build: ./backend/servicio_analytics
+    command: celery -A servicio_analytics beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    container_name: rep_drill_analytics_beat
+    environment:
+      - SECRET_KEY=${DJANGO_SECRET_KEY}
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
+      - DB_NAME=${DB_NAME:-rep_drill_db}
+      - DB_USER=${DB_USER:-usuario}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DEBUG=${DEBUG:-False}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
+    depends_on:
+      - redis
+      - analytics
+    volumes:
+      - ./backend/servicio_analytics:/app
+    networks:
+      - micro_net
+    restart: unless-stopped
+
+  # Nginx Gateway
+  nginx:
+    image: nginx:alpine
+    container_name: rep_drill_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./backend/nginx.conf:/etc/nginx/nginx.conf:ro
+      - auth_static:/app/auth/staticfiles:ro
+      - personas_static:/app/personas/staticfiles:ro
+      - inventario_static:/app/inventario/staticfiles:ro
+      - ventas_static:/app/ventas/staticfiles:ro
+      - analytics_static:/app/analytics/staticfiles:ro
+    depends_on:
+      - auth
+      - personas
+      - inventario
+      - ventas
+      - analytics
+    networks:
+      - micro_net
+    restart: unless-stopped
 
   # Frontend React
   frontend:
@@ -127,13 +288,21 @@ services:
       - personas
       - inventario
       - ventas
+      - analytics
     environment:
-      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_API_BASE_URL=http://localhost
     networks:
       - micro_net
 
 volumes:
   postgres_data:
+  redis_data:
+  auth_static:
+  personas_static:
+  inventario_static:
+  ventas_static:
+  analytics_static:
+  analytics_media:
 
 networks:
   micro_net:

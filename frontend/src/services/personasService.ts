@@ -65,4 +65,28 @@ export const personasService = {
     });
     return response.data.results || response.data;
   },
+
+  /**
+   * Búsqueda rápida de clientes por teléfono, email o nombre
+   * Optimizada para empleados buscar clientes en tiempo real
+   */
+  searchCustomers: async (params: {
+    phone?: string;
+    email?: string;
+    name?: string;
+    limit?: number;
+  }): Promise<{
+    count: number;
+    results: Persona[];
+  }> => {
+    const response = await apiClient.get(`${API_URLS.PERSONAS}/api/personas/search_customers/`, {
+      params: {
+        phone: params.phone || '',
+        email: params.email || '',
+        name: params.name || '',
+        limit: params.limit || 50,
+      },
+    });
+    return response.data;
+  },
 };

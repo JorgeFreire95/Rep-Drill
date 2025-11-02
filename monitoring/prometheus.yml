@@ -1,0 +1,75 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'rep_drill'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - '/etc/prometheus/alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node Exporter - System metrics
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['node_exporter:9100']
+
+  # PostgreSQL Exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres_exporter:9187']
+
+  # Redis Exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis_exporter:9121']
+
+  # cAdvisor - Container metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # Django Services (si tienes django-prometheus instalado)
+  - job_name: 'django_auth'
+    static_configs:
+      - targets: ['auth:8001']
+    metrics_path: '/metrics'
+
+  - job_name: 'django_personas'
+    static_configs:
+      - targets: ['personas:8004']
+    metrics_path: '/metrics'
+
+  - job_name: 'django_inventario'
+    static_configs:
+      - targets: ['inventario:8003']
+    metrics_path: '/metrics'
+
+  - job_name: 'django_ventas'
+    static_configs:
+      - targets: ['ventas:8002']
+    metrics_path: '/metrics'
+
+  - job_name: 'django_analytics'
+    static_configs:
+      - targets: ['analytics:8005']
+    metrics_path: '/metrics'
+
+  # Nginx metrics (si tienes nginx-prometheus-exporter)
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['gateway:9113']

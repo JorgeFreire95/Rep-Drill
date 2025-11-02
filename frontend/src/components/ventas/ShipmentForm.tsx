@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
 import type { Shipment, Order } from '../../types';
 import { Button } from '../common';
 import { ventasService } from '../../services/ventasService';
 import { inventarioService } from '../../services/inventarioService';
+import { formatCLP } from '../../utils/currencyUtils';
 
 interface ShipmentFormProps {
   shipment?: Shipment;
@@ -51,7 +53,7 @@ export const ShipmentForm: React.FC<ShipmentFormProps> = ({
       const data = await ventasService.getAllOrders();
       setOrders(data);
     } catch (error) {
-      console.error('Error cargando órdenes:', error);
+      logger.error('Error cargando órdenes:', error);
     } finally {
       setLoadingOrders(false);
     }
@@ -63,7 +65,7 @@ export const ShipmentForm: React.FC<ShipmentFormProps> = ({
       const data = await inventarioService.getWarehouses();
       setWarehouses(data);
     } catch (error) {
-      console.error('Error cargando bodegas:', error);
+      logger.error('Error cargando bodegas:', error);
     } finally {
       setLoadingWarehouses(false);
     }
@@ -112,7 +114,7 @@ export const ShipmentForm: React.FC<ShipmentFormProps> = ({
     try {
       await onSubmit(formData);
     } catch (error) {
-      console.error('Error al guardar envío:', error);
+      logger.error('Error al guardar envío:', error);
     }
   };
 
@@ -133,7 +135,7 @@ export const ShipmentForm: React.FC<ShipmentFormProps> = ({
           <option value={0}>Seleccione una orden</option>
           {orders.map(order => (
             <option key={order.id} value={order.id}>
-              Orden #{order.id} - Cliente #{order.customer_id} - ${order.total}
+              Orden #{order.id} - Cliente #{order.customer_id} - {formatCLP(order.total)}
             </option>
           ))}
         </select>
@@ -215,7 +217,7 @@ export const ShipmentForm: React.FC<ShipmentFormProps> = ({
           <h4 className="text-sm font-semibold text-blue-900 mb-2">Resumen del Envío</h4>
           <div className="text-sm text-blue-800 space-y-1">
             {selectedOrder && (
-              <p>• Orden #{selectedOrder.id} - Total: ${parseFloat(selectedOrder.total.toString()).toLocaleString('es-CL')}</p>
+              <p>• Orden #{selectedOrder.id} - Total: {formatCLP(selectedOrder.total)}</p>
             )}
             {selectedWarehouse && (
               <p>• Bodega: {selectedWarehouse.name} ({selectedWarehouse.location})</p>

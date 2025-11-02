@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
 import type { Order, OrderFormData, OrderDetailFormData } from '../../types';
 import { Button } from '../common';
 import { personasService } from '../../services/personasService';
 import { inventarioService } from '../../services/inventarioService';
+import { formatCLP } from '../../utils/currencyUtils';
 import type { Persona, Product } from '../../types';
 import { Plus, Trash2 } from 'lucide-react';
 
@@ -38,7 +40,9 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   // Cargar detalles cuando se edita una orden
   useEffect(() => {
     if (order && order.details_read && order.details_read.length > 0) {
-      console.log('🔵 Cargando detalles de orden para editar:', order.details_read);
+      logger.info('🔵 Cargando detalles de orden para editar', {
+        detailsCount: order.details_read.length
+      });
       const mappedDetails = order.details_read.map(detail => ({
         product_id: detail.product_id,
         quantity: detail.quantity,
@@ -63,9 +67,15 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         inventarioService.getProducts(),
       ]);
       setClientes(clientesData.results || clientesData);
-      setProductos(productosData);
+      // Filtrar solo productos con stock disponible (quantity > 0)
+      const productosConStock = productosData.filter(p => p.quantity > 0);
+      setProductos(productosConStock);
+      
+      if (productosData.length > productosConStock.length) {
+        logger.info(`⚠️ ${productosData.length - productosConStock.length} productos sin stock han sido filtrados`);
+      }
     } catch (error) {
-      console.error('Error al cargar datos:', error);
+      logger.error('Error al cargar datos:', error);
     } finally {
       setLoadingData(false);
     }
@@ -97,6 +107,19 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             const producto = productos.find(p => p.id === Number(value));
             if (producto) {
               updated.unit_price = producto.price;
+            }
+          }
+          
+          // Validar que la cantidad no exceda el stock disponible
+          if (field === 'quantity' || field === 'product_id') {
+            const producto = productos.find(p => p.id === (field === 'product_id' ? Number(value) : updated.product_id));
+            if (producto && field === 'quantity') {
+              const cantidadSolicitada = Number(value);
+              if (cantidadSolicitada > producto.quantity) {
+                // Limitar al stock disponible
+                updated.quantity = producto.quantity;
+                logger.warn(`⚠️ ${producto.name} solo tiene ${producto.quantity} unidades disponibles`);
+              }
             }
           }
           
@@ -132,6 +155,13 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       if (detail.quantity <= 0) {
         newErrors[`detail_${index}_quantity`] = 'Cantidad debe ser mayor a 0';
       }
+      
+      // Validar stock disponible
+      const producto = productos.find(p => p.id === detail.product_id);
+      if (producto && detail.quantity > producto.quantity) {
+        newErrors[`detail_${index}_quantity`] = 
+          `Solo hay ${producto.quantity} unidades disponibles de ${producto.name}`;
+      }
     });
 
     setErrors(newErrors);
@@ -148,7 +178,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     try {
       await onSubmit(formData);
     } catch (error) {
-      console.error('Error al guardar orden:', error);
+      logger.error('Error al guardar orden:', error);
     }
   };
 
@@ -185,11 +215,19 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             size="sm"
             icon={<Plus className="h-4 w-4" />}
             onClick={addDetail}
-            disabled={isLoading}
+            disabled={isLoading || productos.length === 0}
           >
             Agregar Producto
           </Button>
         </div>
+
+        {productos.length === 0 && !loadingData && (
+          <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              ⚠️ No hay productos con stock disponible. No se pueden agregar productos a la orden.
+            </p>
+          </div>
+        )}
 
         {errors.details && (
           <p className="text-sm text-red-600 mb-2">{errors.details}</p>
@@ -210,7 +248,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                     <option value={0}>Seleccione...</option>
                     {productos.map(prod => (
                       <option key={prod.id} value={prod.id}>
-                        {prod.name} - ${prod.price}
+                        {prod.name} - ${prod.price} (Stock: {prod.quantity})
                       </option>
                     ))}
                   </select>
@@ -224,11 +262,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                   <input
                     type="number"
                     min="1"
-                    className="input input-sm"
+                    className={`input input-sm ${errors[`detail_${index}_quantity`] ? 'border-red-500' : ''}`}
                     value={detail.quantity}
                     onChange={(e) => updateDetail(index, 'quantity', parseInt(e.target.value) || 1)}
                     disabled={isLoading}
                   />
+                  {errors[`detail_${index}_quantity`] && (
+                    <p className="text-xs text-red-600 mt-1">{errors[`detail_${index}_quantity`]}</p>
+                  )}
                 </div>
 
                 <div className="col-span-2">
@@ -269,7 +310,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
               </div>
 
               <div className="mt-2 text-right text-sm font-medium text-gray-700">
-                Subtotal: $ {(detail.quantity * detail.unit_price * (1 - (detail.discount || 0) / 100)).toLocaleString('es-CL')}
+                Subtotal: {formatCLP(detail.quantity * detail.unit_price * (1 - (detail.discount || 0) / 100))}
               </div>
             </div>
           ))}
@@ -281,7 +322,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         <div className="flex justify-between items-center">
           <span className="text-lg font-semibold text-gray-900">Total:</span>
           <span className="text-2xl font-bold text-primary-600">
-            $ {calculateTotal().toLocaleString('es-CL')}
+            {formatCLP(calculateTotal())}
           </span>
         </div>
       </div>

@@ -1,13 +1,20 @@
-import React from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
   Package,
   ShoppingCart,
-  TrendingUp,
+  UserCog,
   X,
+  BarChart3,
+  ClipboardList,
+  Truck,
+  FileSpreadsheet,
+  History,
 } from 'lucide-react';
+import { inventarioService } from '../../services/inventarioService';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -27,6 +34,11 @@ const navItems: NavItem[] = [
     icon: <LayoutDashboard className="h-5 w-5" />,
   },
   {
+    name: 'Proveedores',
+    path: '/proveedores',
+    icon: <Truck className="h-5 w-5" />,
+  },
+  {
     name: 'Personas',
     path: '/personas',
     icon: <Users className="h-5 w-5" />,
@@ -37,18 +49,92 @@ const navItems: NavItem[] = [
     icon: <Package className="h-5 w-5" />,
   },
   {
+    name: 'Reordenes',
+    path: '/reordenes',
+    icon: <ClipboardList className="h-5 w-5" />,
+  },
+  {
     name: 'Ventas',
     path: '/ventas',
     icon: <ShoppingCart className="h-5 w-5" />,
   },
   {
-    name: 'Predicciones',
-    path: '/predicciones',
-    icon: <TrendingUp className="h-5 w-5" />,
+    name: 'Crear Orden',
+    path: '/crear-orden',
+    icon: <ShoppingCart className="h-5 w-5" />,
+  },
+  {
+    name: 'Analytics',
+    path: '/analytics',
+    icon: <BarChart3 className="h-5 w-5" />,
+  },
+  {
+    name: 'Forecasting',
+    path: '/forecasting',
+    icon: <BarChart3 className="h-5 w-5" />,
+  },
+  {
+    name: 'Reportes',
+    path: '/reportes',
+    icon: <FileSpreadsheet className="h-5 w-5" />,
+  },
+  {
+    name: 'Auditoría',
+    path: '/auditoria',
+    icon: <History className="h-5 w-5" />,
+  },
+  {
+    name: 'Usuarios',
+    path: '/usuarios',
+    icon: <UserCog className="h-5 w-5" />,
   },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+  const [lowStockCount, setLowStockCount] = useState<number>(0);
+  const [criticalCount, setCriticalCount] = useState<number>(0);
+  const [hasCritical, setHasCritical] = useState<boolean>(false);
+  const [requestedReordersCount, setRequestedReordersCount] = useState<number>(0);
+
+  // Cargar contador de stock bajo
+  useEffect(() => {
+    const loadLowStockCount = async () => {
+      try {
+        const response = await inventarioService.getLowStockCount();
+        setLowStockCount(response.count);
+        setCriticalCount(response.critical);
+        setHasCritical(response.has_critical);
+      } catch (error) {
+        logger.error('Error cargando contador de stock bajo:', error);
+      }
+    };
+
+    // Cargar inmediatamente
+    loadLowStockCount();
+
+    // Actualizar cada 30 segundos
+    const interval = setInterval(loadLowStockCount, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Cargar contador de reordenes solicitadas
+  useEffect(() => {
+    const loadRequestedReorders = async () => {
+      try {
+        const count = await inventarioService.countRequestedReorders();
+        setRequestedReordersCount(count);
+      } catch (error) {
+        logger.error('Error cargando contador de reordenes solicitadas:', error);
+      }
+    };
+
+    loadRequestedReorders();
+    const interval = setInterval(loadRequestedReorders, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <>
       {/* Backdrop móvil */}
@@ -101,6 +187,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             >
               {item.icon}
               <span>{item.name}</span>
+                {/* Badge de alertas de stock solo en Inventario */}
+                {item.path === '/inventario' && lowStockCount > 0 && (
+                  <span 
+                    className={`ml-auto text-white text-xs font-bold px-2 py-1 rounded-full ${
+                      hasCritical 
+                        ? 'bg-red-600 animate-pulse' 
+                        : 'bg-yellow-500'
+                    }`}
+                    title={hasCritical ? `${criticalCount} crítico(s), ${lowStockCount} total` : `${lowStockCount} alerta(s)`}
+                  >
+                    {lowStockCount}
+                  </span>
+                )}
+                {/* Badge de reordenes solicitadas */}
+                {item.path === '/reordenes' && requestedReordersCount > 0 && (
+                  <span 
+                    className="ml-auto text-white text-xs font-bold px-2 py-1 rounded-full bg-blue-600"
+                    title={`${requestedReordersCount} solicitud(es) pendiente(s)`}
+                  >
+                    {requestedReordersCount}
+                  </span>
+                )}
             </NavLink>
           ))}
         </nav>

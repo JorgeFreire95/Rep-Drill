@@ -221,7 +221,9 @@ class UserListSerializer(serializers.ModelSerializer):
     """
     Serializer for listing users (minimal information)
     """
-    role_display = serializers.CharField(source='role.get_name_display', read_only=True)
+    full_name = serializers.SerializerMethodField()
+    role = RoleSerializer(read_only=True)
+    created_at = serializers.DateTimeField(source='date_joined', read_only=True)
     
     class Meta:
         model = User
@@ -230,12 +232,19 @@ class UserListSerializer(serializers.ModelSerializer):
             'email',
             'first_name',
             'last_name',
-            'role_display',
+            'full_name',
+            'phone',
+            'role',
             'is_active',
+            'is_staff',
             'is_verified',
-            'date_joined',
-            'last_login'
+            'last_login',
+            'created_at',
+            'avatar'
         ]
+    
+    def get_full_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}".strip() or obj.email
 
 
 class UserDetailSerializer(serializers.ModelSerializer):

@@ -20,6 +20,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.db import connection
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
@@ -49,6 +50,24 @@ def api_root(request):
     })
 
 
+def health_check(request):
+    """Simple health check endpoint for monitoring"""
+    try:
+        # Test database connection
+        connection.ensure_connection()
+        return JsonResponse({
+            'status': 'healthy',
+            'service': 'auth',
+            'database': 'ok'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'status': 'unhealthy',
+            'service': 'auth',
+            'error': str(e)
+        }, status=503)
+
+
 urlpatterns = [
     # Admin panel
     path('admin/', admin.site.urls),
@@ -60,7 +79,7 @@ urlpatterns = [
     path('api/', api_root, name='api-root'),
     
     # Health Check
-    path('health/', include('health_check.urls')),
+    path('health/', health_check, name='health-check'),
     
     # OpenAPI Schema & Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
+import { logger } from '../../utils/logger';
 import type { Category, CategoryFormData } from '../../types';
 import { Input, Button } from '../common';
 
@@ -43,7 +44,7 @@ export const CategoriaForm: React.FC<CategoriaFormProps> = ({
     try {
       await onSubmit(formData);
     } catch (error) {
-      console.error('Error al guardar categoría:', error);
+      logger.error('Error al guardar categoría:', error);
     }
   };
 

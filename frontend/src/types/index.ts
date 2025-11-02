@@ -95,10 +95,20 @@ export interface Product {
   sku: string;
   category: number | null;
   category_name?: string;
+  supplier: number | null;
+  supplier_name?: string;
+  warehouse: number | null;
+  warehouse_name?: string;
+  cost_price: number;
   price: number;
   unit_of_measure: string;
   quantity: number;
   min_stock: number;
+  reorder_quantity: number;
+  status: 'ACTIVE' | 'INACTIVE' | 'DISCONTINUED';
+  profit_margin?: number;
+  is_low_stock?: boolean;
+  needs_reorder?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -108,10 +118,15 @@ export interface ProductFormData {
   description: string;
   sku: string;
   category: number | null;
+  supplier: number | null;
+  warehouse: number | null;
+  cost_price: number;
   price: number;
   unit_of_measure: string;
   quantity: number;
   min_stock: number;
+  reorder_quantity: number;
+  status: 'ACTIVE' | 'INACTIVE' | 'DISCONTINUED';
 }
 
 export interface ProductPriceHistory {
@@ -121,6 +136,42 @@ export interface ProductPriceHistory {
   price: string;
   start_date: string;
   end_date?: string;
+}
+
+// Stock Alerts
+export interface ProductWithAlert extends Product {
+  alert_level: 'critical' | 'high' | 'medium' | 'low';
+  alert_message: string;
+  needs_reorder: boolean;
+  stock_percentage: number;
+  missing_to_min: number;
+  recommended_reorder: number;
+}
+
+export interface AlertsByLevel {
+  critical: ProductWithAlert[];
+  high: ProductWithAlert[];
+  medium: ProductWithAlert[];
+}
+
+export interface LowStockResponse {
+  count: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  threshold_multiplier: number;
+  results: ProductWithAlert[];
+  alerts_by_level: AlertsByLevel;
+}
+
+export interface LowStockCountResponse {
+  count: number;
+  critical: number;
+  high: number;
+  medium: number;
+  threshold_multiplier: number;
+  has_critical: boolean;
+  has_alerts: boolean;
 }
 
 export interface Inventory {
@@ -141,6 +192,32 @@ export interface InventoryEvent {
   quantity: number;
   event_date: string;
   notes?: string;
+}
+
+// ==================== REORDERS ====================
+export type ReorderStatus = 'requested' | 'ordered' | 'received' | 'cancelled';
+
+export interface ReorderRequest {
+  id: number;
+  product: number;
+  product_name?: string;
+  supplier?: number | null;
+  supplier_name?: string | null;
+  quantity: number;
+  status: ReorderStatus;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReorderStatusHistory {
+  id: number;
+  reorder: number;
+  old_status: string | null;
+  new_status: string;
+  changed_by: string | null;
+  changed_at: string;
+  notes: string | null;
 }
 
 // ==================== VENTAS ====================
