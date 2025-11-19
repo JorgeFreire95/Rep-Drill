@@ -387,7 +387,7 @@ secrets/
 
 # Google Cloud
 gcloud/
-*.json
+# *.json
 
 # SSH keys
 id_rsa
