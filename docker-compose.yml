@@ -59,7 +59,7 @@ services:
   personas:
     build:
       context: ./backend/servicio_personas
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_personas.wsgi:application
     volumes:
       - ./backend/servicio_personas:/app
@@ -85,7 +85,7 @@ services:
   inventario:
     build:
       context: ./backend/servicio_inventario
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_inventario.wsgi:application
     volumes:
       - ./backend/servicio_inventario:/app
@@ -111,7 +111,7 @@ services:
   ventas:
     build:
       context: ./backend/servicio_ventas
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_ventas.wsgi:application
     volumes:
       - ./backend/servicio_ventas:/app
