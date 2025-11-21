@@ -466,7 +466,7 @@ Para más detalles operativos y comandos de despliegue, ver las guías siguiente
 
 ---
 
-## 📚 Chatbot con Ollama (Nuevo)
+## 📚 Chatbot con Ollama 
 
 El proyecto incluye un microservicio de Chatbot que utiliza un LLM local con Ollama para responder preguntas sobre tu negocio y los gráficos de forecasting. Trabaja sobre los datos calculados por el servicio de Analytics y está completamente integrado al gateway Nginx y la autenticación JWT.
 
@@ -1471,7 +1471,9 @@ Toda la documentación técnica se encuentra en la carpeta [`docs/`](./docs/):
 ## 🏆 Créditos
 
 **Desarrolladores**:
-- Jorge Freire ([@JorgeFreire95](https://github.com/JorgeFreire95))
+- Jorge Freire
+- Elian Farias
+- David Lever
 
 **Tecnologías Principales**:
 - Django REST Framework
