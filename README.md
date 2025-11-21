@@ -1,3 +1,118 @@
+# Project
+
+<p align="center">
+  <img src="https://github.com/JorgeFreire95/rep-drill/blob/main/evidencias/logos/rep-drill_light_logo.svg" width="50%" height="50%" />
+</p>
+
+## Repository
+
+Este repositorio contiene el source code del Software de Gestión para la Sala de Ventas: Lubricentro **Rep-Drill**.
+
+## Main objectives of the Solution
+
+- Contribuir a la ingeniería y mejoramiento continuo de los procesos estratégicos y operacionales de la entidad comercial Rep-Drill, tras la implementación de una infraestructura para optimizar el registro y control de los productos por parte del área operacional.
+- Ofrecer una solución de calidad hacia los empleados.
+- Reducir los tiempos destinados para registrar y modificar los productos.
+- Mejorar el proceso operacional para los usuarios finales.
+- Instar a los empleados a utilizar el software para realizar la gestión de operaciones empresariales.
+
+## Specific objectives of the Solution
+
+| ID | Descripción |
+| ------------- | ------------- |
+| SPC-OBJ-PROJ-01_01 | Implementar y facilitar la gestión del inventario de productos. |
+| SPC-OBJ-PROJ-01_02 | Reportar la gestión del inventario de productos. |
+| SPC-OBJ-PROJ-01_03 | Gestionar el control de acceso de los usuarios. |
+| SPC-OBJ-PROJ-01_04 | Implementar el sistema de notificaciones automatizado, a fin de informar la baja cantidad de cierto producto. |
+| SPC-OBJ-PROJ-01_05 | Integrar el asistente virtual para el asesoramiento de las consultas de los usuarios. |
+| SPC-OBJ-PROJ-01_06 | Analizar, evaluar y reportar los insights del flujo de productos. |
+
+## Transversal objectives of the Solution
+
+| ID | Descripción |
+| ------------- | ------------- |
+| TRANS-OBJ-PROJ-01_01 | Mejorar y proyectar las necesidades administrativas de la entidad comercial. |
+| TRANS-OBJ-PROJ-01_02 | Capacitar al personal para asegurar que estén preparados para manipular los módulos implementados. |
+| TRANS-OBJ-PROJ-01_03 | Controlar y monitorear constantemente que se estén aplicando todos los estándares internacionales que deben ser implementados en el proyecto. |
+
+## Functionality
+
+| ID | Nombre | Descripción |
+| ------------- | ------------- | ------------- |
+| FR-01 | Gestión Productos | Registrar, modificar e inventariar productos. |
+| FR-02 | Gestión Reportes | Generar reportes de inventario. |
+| FR-03 | Gestión Proveedores | Visibilizar y registrar proveedores. |
+| FR-04 | Gestión Autenticación | Autenticar cuenta de usuario. |
+| FR-05 | Gestión Usuarios | Crear y administrar perfiles de usuario. |
+| FR-06 | Gestión Notificaciones | Notificar usuarios del bajo stock de productos. |
+| FR-07 | Gestión Autoayuda | Asesorar consultas del usuario. |
+| FR-08 | Gestión Proyecciones | Proyectar gráficos del flujo de artículos. |
+| FR-09 | Gestión Ventas | Visualizar ventas realizadas. |
+| FR-10 | Gestión Órdenes | Mostrar y generar órdenes de compra. |
+| FR-11 | Gestión Auditoría | Gestionar auditorías. |
+
+## Task List
+
+### 1.	Fase 1: Definición Proyecto APT: Inicio y Organización.
+#### 1.1.	Iteración / Sprint 0: Análisis, Especificación y Planificación. 
+
+- [x] 1.1.	Iteración / Sprint 0: Análisis, Especificación y Planificación. 
+  - [x] 1.1.1.	Gestión de Análisis.
+  - [x] 1.1.2.	Gestión de Especificación.
+  - [x] 1.1.3.	Gestión de Planificación.
+  - [x] 1.1.4.	Gestión de Presentación.
+  - [x] 1.1.5.	Gestión de Exposición.
+
+### 2.	Fase 2: Desarrollo Proyecto APT: Ejecución y Control.
+#### 2.1.	Iteración / Sprint 0.5: Diseño y Gestación.
+
+- [x] 2.1.	Iteración / Sprint 0.5: Diseño y Gestación.
+  - [x] 2.1.1.	Ejecución y Control de Gestión del Modelamiento, Diseño y Arquitectura.
+  - [x] 2.1.2.	Ejecución y Control de Gestión de la Implementación Ambiente de Desarrollo.
+
+#### 2.2.	Iteración / Sprint 1: Construcción e Incremento de Gestión Productos, Reportes y Proveedores.
+
+- [x] 2.2.	Iteración / Sprint 1: Construcción e Incremento de Gestión Productos, Reportes y Proveedores.
+  - [x] 2.2.1.	Ejecución y Control de Gestión Productos.
+  - [x] 2.2.2.	Ejecución y Control de Gestión Reportes.
+  - [x] 2.2.3.	Ejecución y Control de Gestión Proveedores.
+
+#### 2.3.	Iteración / Sprint 2: Construcción e Incremento de Gestión Autenticación y Usuarios.
+
+- [x] 2.3.	Iteración / Sprint 2: Construcción e Incremento de Gestión Autenticación y Usuarios.
+  - [x] 2.3.1.	Ejecución y Control de Gestión Autenticación.
+  - [x] 2.3.2.	Ejecución y Control de Gestión Usuarios.
+
+#### 2.4.	Iteración / Sprint 3: Construcción e Incremento de Gestión Notificaciones, Autoayuda y Proyecciones.
+
+- [x] 2.4.	Iteración / Sprint 3: Construcción e Incremento de Gestión Notificaciones, Autoayuda y Proyecciones.
+  - [x] 2.4.1.	Ejecución y Control de Gestión Notificaciones.
+  - [x] 2.4.2.	Ejecución y Control de Gestión Autoayuda.
+  - [x] 2.4.3.	Ejecución y Control de Gestión Proyecciones.
+
+#### 2.5.	Iteración / Sprint 4: Construcción e Incremento de Gestión Ventas, Órdenes y Auditoría.
+
+- [x] 2.5.	Iteración / Sprint 4: Construcción e Incremento de Gestión Ventas, Órdenes y Auditoría.
+  - [x] 2.5.1.	Ejecución y Control de Gestión Ventas.
+  - [x] 2.5.2.	Ejecución y Control de Gestión Órdenes.
+  - [x] 2.5.3.	Ejecución y Control de Gestión Auditoría.
+
+#### 2.6.	Iteración / Sprint 4.5: Implantación y Capacitación.
+
+- [ ] 2.6.	Iteración / Sprint 4.5: Implantación y Capacitación.
+  - [ ] 2.6.1.	Gestión de Implantación.
+  - [ ] 2.6.2.	Gestión de Capacitación.
+
+### 3.	Fase 3: Presentación Proyecto APT: Cierre y Retrospectiva.
+#### 3.1.	Iteración / Sprint 4.9: Cierre y Retrospectiva.
+
+- [ ] 3.1.	Iteración / Sprint 4.9: Cierre y Retrospectiva.
+  - [ ] 3.1.1.	Gestión de Cierre.
+  - [ ] 3.1.2.	Gestión de Exposición.
+
+## Scrum Board
+### [Trello](https://trello.com/invite/b/6917b18d5b9f85f94f882575/ATTIf380119340f89fcbed7a90d8db750e15BA38C715/rep-drill)
+
 # 🚀 Rep Drill - Sistema de Gestión Empresarial
 
 Sistema empresarial completo con arquitectura de microservicios, predicción de demanda con Prophet, y frontend React moderno. Ideal para gestión de inventario multi-bodega, ventas, personas y análisis predictivo.
@@ -1470,10 +1585,10 @@ Toda la documentación técnica se encuentra en la carpeta [`docs/`](./docs/):
 
 ## 🏆 Créditos
 
-**Desarrolladores**:
-- Jorge Freire
-- Elian Farias
-- David Lever
+**Desarrolladores** (Work Team Members):
+- Elián Farias [@RazorZX](https://github.com/RazorZX)
+- Jorge Freire [@JorgeFreire95](https://github.com/JorgeFreire95)
+- David Lever [@david-lever](https://github.com/david-lever)
 
 **Tecnologías Principales**:
 - Django REST Framework
