@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react-swc'
 
 // https://vite.dev/config/
 // Nota: establecemos base en '/app/' porque el frontend se sirve detrás del gateway en esa ruta.

@@ -59,7 +59,7 @@ services:
   personas:
     build:
       context: ./backend/servicio_personas
-      dockerfile: Dockerfile
+      dockerfile: DockerFile
     command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_personas.wsgi:application
     volumes:
       - ./backend/servicio_personas:/app
@@ -85,7 +85,7 @@ services:
   inventario:
     build:
       context: ./backend/servicio_inventario
-      dockerfile: Dockerfile
+      dockerfile: DockerFile
     command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_inventario.wsgi:application
     volumes:
       - ./backend/servicio_inventario:/app
@@ -111,7 +111,7 @@ services:
   ventas:
     build:
       context: ./backend/servicio_ventas
-      dockerfile: Dockerfile
+      dockerfile: DockerFile
     command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_ventas.wsgi:application
     volumes:
       - ./backend/servicio_ventas:/app
@@ -174,7 +174,7 @@ services:
       - DB_HOST=db
       - DB_PORT=5432
       - DEBUG=${DEBUG:-False}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - ALLOWED_HOSTS=localhost,127.0.0.1,analytics
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -252,6 +252,78 @@ services:
       - micro_net
     restart: unless-stopped
 
+  # Ollama (LLM local)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rep_drill_ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - micro_net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 8G
+        reservations:
+          cpus: '1'
+          memory: 4G
+    # Nota: Para usar GPU, agregar:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Servicio de Chatbot
+  chatbot:
+    build:
+      context: ./backend/servicio_chatbot
+      dockerfile: Dockerfile
+    container_name: rep_drill_chatbot
+    command: gunicorn --bind 0.0.0.0:8000 --workers 2 --timeout 300 servicio_chatbot.wsgi:application
+    volumes:
+      - ./backend/servicio_chatbot:/app
+    ports:
+      - "8006:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
+      analytics:
+        condition: service_started
+    environment:
+      - DATABASE_DB=${DB_NAME:-rep_drill_db}
+      - DATABASE_USER=${DB_USER:-usuario}
+      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - DATABASE_SERVER=db
+      - DATABASE_PORT=5432
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
+      - DEBUG=${DEBUG:-False}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
+      - OLLAMA_TIMEOUT=120
+      - ANALYTICS_SERVICE_URL=http://analytics:8000
+      - VENTAS_SERVICE_URL=http://ventas:8000
+      - CHATBOT_MAX_HISTORY_MESSAGES=5
+      - CHATBOT_CONTEXT_CACHE_TIMEOUT=300
+      - CHATBOT_MAX_TOKENS=256
+      - CHATBOT_TEMPERATURE=0.7
+    networks:
+      - micro_net
+    restart: unless-stopped
+
   # Nginx Gateway
   nginx:
     image: nginx:alpine
@@ -272,6 +344,7 @@ services:
       - inventario
       - ventas
       - analytics
+      - chatbot
     networks:
       - micro_net
     restart: unless-stopped
@@ -282,7 +355,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:80"
+      - "5173:80"
     depends_on:
       - auth
       - personas
@@ -303,6 +376,7 @@ volumes:
   ventas_static:
   analytics_static:
   analytics_media:
+  ollama_models:
 
 networks:
   micro_net:

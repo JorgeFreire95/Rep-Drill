@@ -30,8 +30,8 @@ RUN chown -R django:django /app
 USER django
 
 # Exponer el puerto
-EXPOSE 8003
+EXPOSE 8000
 
 # Comando por defecto
-CMD ["gunicorn", "--bind", "0.0.0.0:8003", "--workers", "3", "servicio_personas.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "servicio_personas.wsgi:application"]
 

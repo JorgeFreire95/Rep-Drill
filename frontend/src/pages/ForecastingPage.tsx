@@ -13,12 +13,14 @@ import {
   ResponsiveContainer,
   ComposedChart,
 } from 'recharts';
+import { MessageSquare } from 'lucide-react';
 import forecastingService, {
   type ForecastData,
   type RestockRecommendation,
   type ProphetComponents,
 } from '../services/forecastingService';
 import catalogService, { type CategoryOption, type WarehouseOption } from '../services/catalogService';
+import ChatbotPanel from '../components/chatbot/ChatbotPanel';
 import '../styles/ForecastingPage.css';
 import { logger } from '../utils/logger';
 
@@ -73,6 +75,9 @@ const ForecastingPage: React.FC = () => {
     avgAccuracy: 0,
     totalRecommendations: 0,
   });
+
+  // Chatbot
+  const [chatOpen, setChatOpen] = useState(false);
 
   // ================== Data Loading ==================
 
@@ -887,6 +892,22 @@ const ForecastingPage: React.FC = () => {
         {activeTab === 'components' && renderComponentsTab()}
         {activeTab === 'accuracy' && renderAccuracyTab()}
       </div>
+
+      {/* Botón flotante para abrir chatbot */}
+      {!chatOpen && (
+        <button
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 flex items-center justify-center z-40 transition-all duration-200 group"
+          aria-label="Abrir asistente de forecasting"
+          title="Asistente IA de Forecasting"
+        >
+          <MessageSquare className="w-7 h-7 group-hover:scale-110 transition-transform" />
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full animate-pulse" />
+        </button>
+      )}
+
+      {/* Panel del chatbot */}
+      <ChatbotPanel isOpen={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );
 };

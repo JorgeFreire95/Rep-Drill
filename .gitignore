@@ -55,11 +55,13 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-*.env
 *.env.local
 *.env.production
 *.env.staging
 *.env.development
+
+# IMPORTANTE: NO ignorar .env principal si contiene config no sensible
+# Comentar la línea de arriba si .env tiene solo configuración de desarrollo
 
 # Django specific
 *.log
@@ -95,9 +97,12 @@ celery.log
 *.db
 
 # PostgreSQL backups
-*.sql
 *.dump
 *.backup
+
+# Excluir scripts SQL de datos simulados
+backend/datos_*.sql
+backend/*_datos.sql
 
 # Database data directories
 postgres_data/
@@ -153,10 +158,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Lock files (opcional: comentar si quieres incluirlos)
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
+# Lock files - MANTENER para reproducibilidad en producción
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
 
 # Frontend environment variables
 frontend/.env
@@ -285,23 +290,39 @@ temp/
 # SPECIFIC TO REP DRILL
 # ============================================================================
 
+# Archivos JSON temporales de prueba
+login.json
+login_resp.json
+token.json
+*.response.json
+
+# Archivos de configuración temporal
+rep_drill.yml
+nginx_ssl.conf
+
 # Service-specific environment files
 backend/servicio_auth/.env
 backend/servicio_personas/.env
 backend/servicio_inventario/.env
 backend/servicio_ventas/.env
+backend/servicio_analytics/.env
+backend/servicio_chatbot/.env
 
 # Uploads y media files en desarrollo
 backend/servicio_auth/media/
 backend/servicio_personas/media/
 backend/servicio_inventario/media/
 backend/servicio_ventas/media/
+backend/servicio_analytics/media/
+backend/servicio_chatbot/media/
 
 # Static files collected
 backend/servicio_auth/staticfiles/
 backend/servicio_personas/staticfiles/
 backend/servicio_inventario/staticfiles/
 backend/servicio_ventas/staticfiles/
+backend/servicio_analytics/staticfiles/
+backend/servicio_chatbot/staticfiles/
 
 # ============================================================================
 # PYTHON TOOLS
@@ -310,6 +331,14 @@ backend/servicio_ventas/staticfiles/
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb
+
+# Scripts de prueba y análisis
+backend/test_*.py
+backend/demo_*.py
+backend/benchmark_*.py
+backend/*_simulados.py
+backend/clear_cache.py
+backend/populate_*.py
 
 # IPython
 profile_default/
@@ -387,7 +416,7 @@ secrets/
 
 # Google Cloud
 gcloud/
-# *.json
+*.json
 
 # SSH keys
 id_rsa
@@ -398,9 +427,14 @@ id_rsa.pub
 # DOCUMENTATION (OPCIONAL)
 # ============================================================================
 
-# Mantener estos archivos pero ignorar temporales
+# Mantener carpeta docs/ con toda la documentación
+# docs/ está incluida en el repo
+
+# Solo ignorar archivos temporales de documentación
 *.pdf~
 *.docx~
+*.md~
+*.md.bak
 
 # ============================================================================
 # MISC
@@ -418,18 +452,45 @@ id_rsa.pub
 *.rar
 *.7z
 
-# Large video files
-*.mp4
-*.avi
-*.mov
-*.mkv
-*.flv
-*.wmv
-
 # Redis dump
 dump.rdb
 
 # Performance data
 .profiling/
+
+# ============================================================================
+# MONITORING & OBSERVABILITY
+# ============================================================================
+
+# Prometheus data
+prometheus_data/
+
+# Grafana data
+grafana_data/
+
+# Logs de monitoreo
+monitoring/logs/
+
+# ============================================================================
+# DEVELOPMENT HELPERS
+# ============================================================================
+
+# Scripts de PowerShell temporales
+*.ps1.backup
+cargar_datos_*.ps1
+
+# Archivos de análisis y separación
+separar_*.py
+recompute_*.py
+check_*.py
+calculate_*.py
+
+# ============================================================================
+# EVIDENCIAS Y PRESENTACIONES (Mantener en repo)
+# ============================================================================
+
+# La carpeta evidencias/ está incluida pero ignorar temporales
+evidencias/**/*.tmp
+evidencias/**/*.cache
 
 # End of .gitignore

@@ -15,6 +15,9 @@ Sistema empresarial completo con arquitectura de microservicios, predicción de 
 - [Desarrollo](#-desarrollo)
 - [Despliegue en Producción](#-despliegue-en-producción)
 - [API Documentation](#-api-documentation)
+- [Documentación Adicional](#-documentación-adicional)
+- [Contribución](#-contribución)
+- [Licencia](#-licencia)
 
 ---
 
@@ -22,38 +25,45 @@ Sistema empresarial completo con arquitectura de microservicios, predicción de 
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Frontend React (Port 3000)                │
-│           Vite + TypeScript + Tailwind CSS + Recharts        │
+│                    Frontend React (Port 5173)                │
+│       Vite + TypeScript + Tailwind CSS + Recharts + PWA      │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   Nginx Gateway (Port 80)                    │
-│         Reverse Proxy + Static Files + Load Balancing        │
-└─┬────────┬────────┬────────┬────────┬────────┬─────────────┘
-  │        │        │        │        │        │
-  ▼        ▼        ▼        ▼        ▼        ▼
-┌────┐  ┌────┐  ┌────┐  ┌────┐  ┌────┐  ┌──────────┐
-│Auth│  │Pers│  │Inv │  │Vent│  │Analy│  │ Redis    │
-│8001│  │8004│  │8003│  │8002│  │8005│  │ 6379     │
-└─┬──┘  └─┬──┘  └─┬──┘  └─┬──┘  └─┬──┘  └──┬───────┘
-  │       │       │       │       │        │
-  └───────┴───────┴───────┴───────┴────────┼────────┐
-                                   │        │        │
-                                   ▼        ▼        ▼
-                            ┌──────────┐ ┌────┐ ┌────────┐
-                            │PostgreSQL│ │Celer│ │Celery │
-                            │   5432   │ │Work│ │Beat   │
-                            └──────────┘ └────┘ └────────┘
+│                   Nginx Gateway (Port 80/443)                │
+│     Reverse Proxy + SSL/TLS + Static Files + Load Balance    │
+└─┬───────┬────────┬────────┬────────┬────────┬───────┬──────┘
+  │       │        │        │        │        │       │
+  ▼       ▼        ▼        ▼        ▼        ▼       ▼
+┌────┐ ┌────┐  ┌────┐  ┌────┐  ┌────┐  ┌────┐  ┌──────────┐
+│Auth│ │Pers│  │Inv │  │Vent│  │Analy│  │Chat│  │ Ollama   │
+│8001│ │8004│  │8003│  │8002│  │8005│  │8006│  │ 11434    │
+└─┬──┘ └─┬──┘  └─┬──┘  └─┬──┘  └─┬──┘  └─┬──┘  └──────────┘
+  │      │       │       │       │       │
+  └──────┴───────┴───────┴───────┴───────┴────────┐
+                                           │       │
+                                           ▼       ▼
+                                    ┌──────────┐ ┌────────┐
+                                    │PostgreSQL│ │ Redis  │
+                                    │   5432   │ │  6379  │
+                                    └────┬─────┘ └───┬────┘
+                                         │           │
+                                         ▼           ▼
+                                    ┌────────┐  ┌────────┐
+                                    │ Celery │  │ Celery │
+                                    │ Worker │  │  Beat  │
+                                    └────────┘  └────────┘
 ```
 
 **Características Arquitectónicas:**
-- **Microservicios**: 5 servicios independientes con Django REST Framework
-- **Base de Datos Compartida**: PostgreSQL 15 Alpine con conexiones aisladas por servicio
-- **Message Broker**: Redis para Celery y caché distribuido
-- **API Gateway**: Nginx para routing, load balancing y servir estáticos
-- **Workers Asíncronos**: Celery para tareas programadas (métricas, forecasting)
-- **Frontend SPA**: React servido vía Nginx en puerto 3000
+- **Microservicios**: 6 servicios independientes con Django REST Framework
+- **Base de Datos**: PostgreSQL 15 Alpine con conexiones optimizadas y pooling
+- **Cache & Broker**: Redis 7 para Celery, caché de Prophet y sesiones
+- **API Gateway**: Nginx con SSL/TLS ready, rate limiting y security headers
+- **Workers Asíncronos**: Celery + Beat para métricas y forecasting automatizado
+- **LLM Local**: Ollama para chatbot inteligente sin dependencia de APIs externas
+- **Frontend Moderno**: React 18 SPA con lazy loading y code splitting
 
 ---
 
@@ -98,6 +108,13 @@ Sistema empresarial completo con arquitectura de microservicios, predicción de 
 - **Reportes**: Kardex, ventas, rentabilidad (con exportación PDF/Excel)
 - **Dashboard**: Estadísticas en tiempo real con métricas consolidadas
 
+### 🤖 Chatbot Inteligente (Ollama)
+- **LLM Local**: Gemma2 2B sin dependencia de APIs cloud
+- **Streaming SSE**: Respuestas en tiempo real con Server-Sent Events
+- **Memoria Conversacional**: Contexto persistente en Redis
+- **Integración con Negocio**: Consultas de inventario, ventas, clientes en lenguaje natural
+- **Sin Costos de API**: Modelo corriendo localmente con Ollama
+
 ### 🔄 Procesamiento Asíncrono
 - **Celery Beat**: Tareas programadas
   - `calculate_daily_metrics`: cada hora
@@ -108,7 +125,7 @@ Sistema empresarial completo con arquitectura de microservicios, predicción de 
   - `update_forecast_accuracy`: 7:00 AM diario
   - `cleanup_old_metrics`: semanal
   - `check_service_health`: cada 5 minutos
-- **Celery Worker**: Procesamiento paralelo con 2 workers
+- **Celery Worker**: Procesamiento paralelo con 2 workers por servicio
 
 ---
 
@@ -116,15 +133,16 @@ Sistema empresarial completo con arquitectura de microservicios, predicción de 
 
 ### Backend
 - **Framework**: Django 4.2 + Django REST Framework 3.14
-- **Base de Datos**: PostgreSQL 15 Alpine
-- **Cache/Broker**: Redis 7 Alpine
-- **Task Queue**: Celery 5.3 + Celery Beat
-- **WSGI Server**: Gunicorn (3 workers, timeout 120s)
-- **ML Library**: Prophet 1.1 (forecasting)
-- **Authentication**: SimpleJWT
-- **Testing**: pytest + pytest-django + pytest-cov
-- **Validación**: Frictionless (CSV data quality)
-- **Monitoring**: Prometheus client
+- **Base de Datos**: PostgreSQL 15 Alpine con pgAdmin (opcional)
+- **Cache/Broker**: Redis 7 Alpine con persistencia AOF
+- **Task Queue**: Celery 5.3 + Celery Beat (scheduler)
+- **WSGI Server**: Gunicorn (3 workers/servicio, timeout 120s)
+- **ML Library**: Prophet 1.1 (time series forecasting)
+- **LLM**: Ollama + Gemma2 2B (chatbot local)
+- **Authentication**: JWT (SimpleJWT) con refresh token blacklist
+- **Testing**: pytest + pytest-django + pytest-cov + coverage
+- **Validación**: Frictionless (CSV quality), Pydantic (data models)
+- **Monitoring**: Prometheus + Grafana (opcional)
 
 ### Frontend
 - **Framework**: React 18.3.1
@@ -201,7 +219,7 @@ Esto iniciará:
 - Analytics Service (puerto 8005)
 - Celery Worker + Beat
 - Nginx Gateway (puerto 80)
-- Frontend React (puerto 3000)
+- Frontend React (puerto 5173)
 
 ### 4. Ejecutar Migraciones
 ```powershell
@@ -210,6 +228,7 @@ docker compose exec personas python manage.py migrate
 docker compose exec inventario python manage.py migrate
 docker compose exec ventas python manage.py migrate
 docker compose exec analytics python manage.py migrate
+docker compose exec chatbot python manage.py migrate
 ```
 
 ### 5. Crear Superusuario (Opcional)
@@ -218,13 +237,15 @@ docker compose exec auth python manage.py createsuperuser
 ```
 
 ### 6. Acceder al Sistema
-- **Frontend**: http://localhost:3000
+- **Frontend**: http://localhost:5173
 - **Nginx Gateway**: http://localhost
 - **Auth API**: http://localhost/auth/api/v1/
 - **Personas API**: http://localhost/personas/api/
 - **Inventario API**: http://localhost/inventario/api/
 - **Ventas API**: http://localhost/ventas/api/
 - **Analytics API**: http://localhost/analytics/api/
+- **Chatbot API**: http://localhost/chatbot/api/chatbot/ (SSE streaming)
+- **Ollama LLM**: http://localhost:11434 (primer uso descarga Gemma2 ~1.6GB)
 
 ### 7. Poblar con Datos de Prueba (Opcional)
 ```powershell
@@ -398,6 +419,81 @@ docker compose exec analytics python populate_inventory_clean.py
 
 **Reportes**:
 - `GET /api/reports/kardex/?product_id=X&warehouse_id=Y` - Kardex (movimientos)
+
+---
+
+### 6. **Chatbot de Forecasting (Ollama, Puerto 8006)**
+**Propósito**: Asistente conversacional que analiza métricas y gráficos de forecasting (ventas e inventario) usando un LLM local vía Ollama.
+
+**Características**
+- Streaming en tiempo real (SSE) con botón Cancelar en el frontend
+- Reintento automático con refresh de token cuando expira el access token
+- Preguntas rápidas públicas (sin autenticación)
+- Contexto de negocio: top N productos, últimos días, KPIs de ventas/inventario
+- Métricas internas: tokens usados, tiempo de respuesta, errores/día
+
+**Endpoints** (prefijo Nginx: `/chatbot` → servicio interno: `/api/chatbot/`)
+- `POST /api/chatbot/ask/` — respuesta completa (no streaming)
+- `POST /api/chatbot/ask-stream/` — respuesta en streaming (text/event-stream)
+- `GET  /api/chatbot/quick-questions/` — preguntas sugeridas (público)
+- `GET  /api/chatbot/history/?session_id=UUID` — historial de la sesión
+- `DELETE /api/chatbot/clear/?session_id=UUID` — finalizar sesión
+- `GET  /api/chatbot/health/` — estado (Ollama, DB, Redis, Analytics)
+
+**Variables de entorno relevantes** (ya incluidas en `docker-compose.yml`)
+- `JWT_SIGNING_KEY` — debe ser la misma en todos los servicios (Auth, Chatbot, Analytics). Importante para evitar 401.
+- `OLLAMA_URL` — por defecto `http://ollama:11434` (contenedor local)
+- `OLLAMA_MODEL` — por defecto `llama3.2:3b` (ligero y rápido)
+- `OLLAMA_TIMEOUT` — tiempo de espera de conexión/lectura
+- `CHATBOT_MAX_TOKENS`, `CHATBOT_TEMPERATURE` — control de generación
+
+**Notas de operación**
+- El primer request puede tardar más: Ollama descargará el modelo si no existe.
+- El Nginx Gateway está configurado para SSE: `proxy_buffering off`, `gzip off`, `proxy_read_timeout 3600s`.
+- El endpoint de streaming emite eventos `start`, `chunk`, `done`, `error`.
+
+**Frontend**
+- Panel del chatbot disponible desde `http://localhost/app/` una vez autenticado.
+- El cliente de streaming usa `fetch + ReadableStream` con `AbortController` (Cancel), manejo de `401 → refresh → retry` y ETA/elapsed.
+
+**Solución de problemas (401 Unauthorized)**
+1) Cierra sesión y vuelve a iniciar en `http://localhost/app`.
+2) Asegura que `JWT_SIGNING_KEY` sea el mismo para `auth`, `chatbot` y `analytics`.
+3) Verifica en la solicitud que se envíe `Authorization: Bearer <access>`.
+4) Si persiste, revisa logs de `rep_drill_chatbot` para mensajes de `Unauthorized` y compártelos.
+
+Para más detalles operativos y comandos de despliegue, ver las guías siguientes.
+
+---
+
+## 📚 Chatbot con Ollama (Nuevo)
+
+El proyecto incluye un microservicio de Chatbot que utiliza un LLM local con Ollama para responder preguntas sobre tu negocio y los gráficos de forecasting. Trabaja sobre los datos calculados por el servicio de Analytics y está completamente integrado al gateway Nginx y la autenticación JWT.
+
+Funciones clave
+- Análisis conversacional de KPIs y proyecciones
+- Streaming SSE con cancelación desde el cliente
+- Manejo de tokens expandidos (refresh automático)
+- Preguntas rápidas públicas para onboarding
+
+Tecnologías
+- Django + DRF, SimpleJWT
+- Ollama (llama3.2:3b por defecto)
+- Nginx (SSE/CORS/Authorization forwarding)
+- React + TypeScript (cliente streaming)
+
+---
+
+## 🧭 Guías rápidas del Chatbot
+
+- Guía rápida: `CHATBOT_QUICKSTART.md`
+- Despliegue y configuración avanzada: `DEPLOYMENT_CHATBOT.md`
+
+Ambos documentos cubren:
+- Modelos recomendados de Ollama, cómo cambiarlos y precargarlos
+- Variables de entorno y timeouts
+- Rutas y CORS en Nginx
+- Pruebas de salud y verificación end-to-end
 - `GET /api/reports/sales/?period=month` - Reporte de ventas
 - `GET /api/reports/profitability/?period=month` - Reporte de rentabilidad
 
@@ -1302,17 +1398,91 @@ Este proyecto está bajo licencia MIT. Ver archivo `LICENSE` para más detalles.
 
 ---
 
-## 📞 Soporte
+## 📚 Documentación Adicional
 
-- **Issues**: https://github.com/RazorZ7X/rep_drill/issues
-- **Documentación adicional**: Ver carpeta `/docs`
-  - `BACKEND_ARCHITECTURE.md` - Arquitectura detallada del backend
-  - `FRONTEND_DOCUMENTATION.md` - Componentes y estructura del frontend
-  - `PROPHET_SYSTEM.md` - Sistema de forecasting con Prophet
+Toda la documentación técnica se encuentra en la carpeta [`docs/`](./docs/):
+
+### Guías de Servicios
+- **[`ANALYTICS_README.md`](./docs/ANALYTICS_README.md)** - Sistema de analytics y Prophet forecasting
+- **[`FRONTEND_README.md`](./docs/FRONTEND_README.md)** - Arquitectura y componentes del frontend
+- **[`CHATBOT_QUICKSTART.md`](./docs/CHATBOT_QUICKSTART.md)** - Inicio rápido del chatbot con Ollama
+- **[`DEPLOYMENT_CHATBOT.md`](./docs/DEPLOYMENT_CHATBOT.md)** - Despliegue del chatbot en producción
+
+### Guías de Datos y Testing
+- **[`README_GENERADOR_DATOS.md`](./docs/README_GENERADOR_DATOS.md)** - Generador de datos de prueba
+- **[`RESUMEN_GENERADOR.md`](./docs/RESUMEN_GENERADOR.md)** - Resumen del sistema de generación
+- **[`Guía_para_Probar_y_Hacer_Build_del_Sistema_en_Docker.md`](./docs/Guía_para_Probar_y_Hacer_Build_del_Sistema_en_Docker.md)** - Testing y builds
+
+### Análisis y Métricas
+- **[`nps.md`](./docs/nps.md)** - Net Promoter Score y métricas de satisfacción
 
 ---
 
-**Última actualización**: 2025-11-01  
-**Versión**: 1.0.0  
-**Autor**: RazorZ7X
+## 📊 Estado del Proyecto
+
+### ✅ Completado (90%)
+- Arquitectura de microservicios con 6 servicios
+- Autenticación JWT con refresh tokens
+- CRUD completo de todos los modelos
+- Prophet forecasting funcional
+- Dashboard con métricas en tiempo real
+- Chatbot inteligente con Ollama
+- Celery tasks automatizadas
+- Docker Compose orquestación
+- Frontend React moderno
+
+### 🚧 En Progreso (10%)
+- Tests E2E con Playwright
+- Optimización de queries (select_related)
+- Separación de bases de datos por servicio
+- Kubernetes manifests
+- CI/CD pipeline
+
+### 🎯 Roadmap
+1. **Corto Plazo** (1-2 semanas)
+   - Implementar permisos en todos los endpoints
+   - Agregar rate limiting en analytics
+   - Tests de concurrencia para stock
+   - HTTPS con Let's Encrypt
+
+2. **Medio Plazo** (1-2 meses)
+   - React Query para estado de servidor
+   - Redis Cluster para cache distribuido
+   - PostgreSQL read replicas
+   - Grafana dashboards
+
+3. **Largo Plazo** (3-6 meses)
+   - Event sourcing con Kafka
+   - CQRS para reads/writes
+   - Micro-frontends
+   - ML AutoML para forecasting
+
+---
+
+## 📞 Soporte
+
+- **Issues**: https://github.com/JorgeFreire95/Rep-Drill/issues
+- **Pull Requests**: https://github.com/JorgeFreire95/Rep-Drill/pulls
+- **Documentación**: [`docs/`](./docs/)
+- **Análisis Completo**: Ver análisis detallado del sistema en este README
+
+---
+
+## 🏆 Créditos
+
+**Desarrolladores**:
+- Jorge Freire ([@JorgeFreire95](https://github.com/JorgeFreire95))
+
+**Tecnologías Principales**:
+- Django REST Framework
+- React + TypeScript
+- Prophet (Meta/Facebook)
+- Ollama + Gemma2
+- Docker + PostgreSQL + Redis
+
+---
+
+**Última actualización**: 2025-11-20  
+**Versión**: 1.2.0  
+**Estado**: Producción Beta
 

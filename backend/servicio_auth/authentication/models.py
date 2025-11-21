@@ -25,7 +25,6 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         """
         Create and save a SuperUser with the given email and password.
-        Automatically assigns 'admin' role if it exists.
         """
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
@@ -36,24 +35,7 @@ class UserManager(BaseUserManager):
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser must have is_superuser=True.')
         
-        # Create the superuser
-        user = self.create_user(email, password, **extra_fields)
-        
-        # Try to assign admin role
-        try:
-            admin_role = Role.objects.get(name='admin')
-            user.role = admin_role
-            user.save(using=self._db)
-        except Role.DoesNotExist:
-            # If admin role doesn't exist, create it
-            admin_role = Role.objects.create(
-                name='admin',
-                description='Administrador del sistema con acceso completo'
-            )
-            user.role = admin_role
-            user.save(using=self._db)
-        
-        return user
+        return self.create_user(email, password, **extra_fields)
 
 
 class Role(models.Model):

@@ -134,7 +134,9 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': False,
 
     'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
+    # Usar la misma clave de firmado entre servicios. Si JWT_SIGNING_KEY está
+    # definida, se usará; en caso contrario, se cae back a SECRET_KEY.
+    'SIGNING_KEY': os.getenv('JWT_SIGNING_KEY', SECRET_KEY),
     'VERIFYING_KEY': None,
     'AUDIENCE': None,
     'ISSUER': None,
