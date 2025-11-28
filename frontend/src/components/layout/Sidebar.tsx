@@ -48,8 +48,13 @@ const navItems: NavItem[] = [
     path: '/inventario',
     icon: <Package className="h-5 w-5" />,
   },
+  // {
+  //   name: 'Reservas Activas',
+  //   path: '/reservations',
+  //   icon: <Clock className="h-5 w-5" />,
+  // },
   {
-    name: 'Reordenes',
+    name: 'Reposición',
     path: '/reordenes',
     icon: <ClipboardList className="h-5 w-5" />,
   },
@@ -64,15 +69,15 @@ const navItems: NavItem[] = [
     icon: <ShoppingCart className="h-5 w-5" />,
   },
   {
-    name: 'Analytics',
-    path: '/analytics',
-    icon: <BarChart3 className="h-5 w-5" />,
-  },
-  {
-    name: 'Forecasting',
+    name: 'Predicciones',
     path: '/forecasting',
     icon: <BarChart3 className="h-5 w-5" />,
   },
+  // {
+  //   name: 'Precisión Pronósticos',
+  //   path: '/forecast-accuracy',
+  //   icon: <TrendingUp className="h-5 w-5" />,
+  // },
   {
     name: 'Reportes',
     path: '/reportes',

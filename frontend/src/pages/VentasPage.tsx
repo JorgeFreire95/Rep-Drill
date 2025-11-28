@@ -25,6 +25,12 @@ export const VentasPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);  // Show 20 orders per page
   const [selectedCustomer, setSelectedCustomer] = useState<Persona | null>(null);
+  
+  // Pagination states for payments and shipments
+  const [currentPaymentPage, setCurrentPaymentPage] = useState(1);
+  const [paymentPageSize] = useState(20);
+  const [currentShipmentPage, setCurrentShipmentPage] = useState(1);
+  const [shipmentPageSize] = useState(20);
 
   // Función para formatear fechas sin conversión de zona horaria
   const formatDate = (dateString: string) => {
@@ -382,6 +388,20 @@ export const VentasPage: React.FC = () => {
   const paginatedOrders = filteredOrders.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize
+  );
+
+  // Paginación para pagos
+  const totalPaymentPages = Math.ceil(filteredPayments.length / paymentPageSize);
+  const paginatedPayments = filteredPayments.slice(
+    (currentPaymentPage - 1) * paymentPageSize,
+    currentPaymentPage * paymentPageSize
+  );
+
+  // Paginación para envíos
+  const totalShipmentPages = Math.ceil(filteredShipments.length / shipmentPageSize);
+  const paginatedShipments = filteredShipments.slice(
+    (currentShipmentPage - 1) * shipmentPageSize,
+    currentShipmentPage * shipmentPageSize
   );
 
   const tabs = [
@@ -904,7 +924,7 @@ export const VentasPage: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      filteredPayments.map((payment) => (
+                      paginatedPayments.map((payment) => (
                         <tr key={payment.id}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             #{payment.id}
@@ -953,6 +973,52 @@ export const VentasPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              
+              {/* Paginación para pagos */}
+              {filteredPayments.length > paymentPageSize && (
+                <Card className="mt-4 bg-gray-50">
+                  <div className="flex items-center justify-between p-4">
+                    <div className="text-sm text-gray-600">
+                      Mostrando {((currentPaymentPage - 1) * paymentPageSize) + 1} a {Math.min(currentPaymentPage * paymentPageSize, filteredPayments.length)} de {filteredPayments.length} pagos
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setCurrentPaymentPage(Math.max(1, currentPaymentPage - 1))}
+                        disabled={currentPaymentPage === 1}
+                        className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        ← Anterior
+                      </button>
+                      <div className="flex items-center gap-2">
+                        {Array.from({ length: Math.min(5, totalPaymentPages) }).map((_, i) => {
+                          const pageNum = i + 1;
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPaymentPage(pageNum)}
+                              className={`px-3 py-2 text-sm font-medium rounded-md ${
+                                currentPaymentPage === pageNum
+                                  ? 'bg-primary-600 text-white'
+                                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                        {totalPaymentPages > 5 && <span className="text-gray-500">...</span>}
+                      </div>
+                      <button
+                        onClick={() => setCurrentPaymentPage(Math.min(totalPaymentPages, currentPaymentPage + 1))}
+                        disabled={currentPaymentPage === totalPaymentPages}
+                        className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Siguiente →
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              )}
             </Card>
           )}
         </>
@@ -1017,7 +1083,7 @@ export const VentasPage: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      filteredShipments.map((shipment) => (
+                      paginatedShipments.map((shipment) => (
                         <tr key={shipment.id}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             #{shipment.id}
@@ -1056,6 +1122,52 @@ export const VentasPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              
+              {/* Paginación para envíos */}
+              {filteredShipments.length > shipmentPageSize && (
+                <Card className="mt-4 bg-gray-50">
+                  <div className="flex items-center justify-between p-4">
+                    <div className="text-sm text-gray-600">
+                      Mostrando {((currentShipmentPage - 1) * shipmentPageSize) + 1} a {Math.min(currentShipmentPage * shipmentPageSize, filteredShipments.length)} de {filteredShipments.length} envíos
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setCurrentShipmentPage(Math.max(1, currentShipmentPage - 1))}
+                        disabled={currentShipmentPage === 1}
+                        className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        ← Anterior
+                      </button>
+                      <div className="flex items-center gap-2">
+                        {Array.from({ length: Math.min(5, totalShipmentPages) }).map((_, i) => {
+                          const pageNum = i + 1;
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentShipmentPage(pageNum)}
+                              className={`px-3 py-2 text-sm font-medium rounded-md ${
+                                currentShipmentPage === pageNum
+                                  ? 'bg-primary-600 text-white'
+                                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                        {totalShipmentPages > 5 && <span className="text-gray-500">...</span>}
+                      </div>
+                      <button
+                        onClick={() => setCurrentShipmentPage(Math.min(totalShipmentPages, currentShipmentPage + 1))}
+                        disabled={currentShipmentPage === totalShipmentPages}
+                        className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Siguiente →
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              )}
             </Card>
           )}
         </>

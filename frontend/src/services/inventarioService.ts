@@ -9,7 +9,9 @@ import type {
   LowStockResponse,
   LowStockCountResponse,
   ReorderRequest,
-  ReorderStatusHistory
+  ReorderStatusHistory,
+  StockReservation,
+  ReservationSummary
 } from '../types';
 
 export const inventarioService = {
@@ -121,5 +123,22 @@ export const inventarioService = {
   getReorderHistory: async (id: number): Promise<ReorderStatusHistory[]> => {
     const response = await apiClient.get(`${API_URLS.INVENTARIO}/api/reorders/${id}/history/`);
     return response.data;
+  },
+
+  // Stock Reservations
+  getActiveReservations: async (): Promise<ReservationSummary> => {
+    const response = await apiClient.get(`${API_URLS.INVENTARIO}/api/reservations/active_summary/`);
+    return response.data;
+  },
+
+  getReservationsByOrder: async (orderId: string): Promise<StockReservation[]> => {
+    const response = await apiClient.get(`${API_URLS.INVENTARIO}/api/reservations/by_order/`, {
+      params: { order_id: orderId }
+    });
+    return response.data;
+  },
+
+  releaseReservation: async (id: number): Promise<void> => {
+    await apiClient.post(`${API_URLS.INVENTARIO}/api/reservations/${id}/release/`);
   },
 };

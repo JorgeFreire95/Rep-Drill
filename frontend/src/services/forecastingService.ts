@@ -84,6 +84,16 @@ export const forecastingService = {
   },
 
   /**
+   * Get recent daily sales trend (actuals)
+   */
+  getSalesTrend: async (days: number = 30): Promise<Array<{ period: string; total_sales: number }>> => {
+    const response = await apiClient.get('/analytics/api/daily-sales/trend/', {
+      params: { days }
+    });
+    return response.data || [];
+  },
+
+  /**
    * Get product demand forecast
    */
   getProductForecast: async (

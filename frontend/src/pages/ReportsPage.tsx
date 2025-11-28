@@ -1,79 +1,32 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { reportsService, type GroupBy } from '../services/reportsService';
-import { inventarioService } from '../services/inventarioService';
-import { FileDown, FileSpreadsheet, Filter, BarChart3, PackageSearch } from 'lucide-react';
+import { FileDown, FileSpreadsheet, Filter, BarChart3 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
-interface Product {
-  id: number;
-  name: string;
-  sku: string;
-}
-
-interface Warehouse {
-  id: number;
-  name: string;
-}
-
 export const ReportsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'kardex'|'sales'|'profit'>('kardex');
-  const [products, setProducts] = useState<Product[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [activeTab, setActiveTab] = useState<'sales'|'profit'>('sales');
 
   // Filters
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const defaultStart = useMemo(() => new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10), []);
-  const [productId, setProductId] = useState<number | ''>('');
-  const [warehouseId, setWarehouseId] = useState<number | ''>('');
   const [start, setStart] = useState<string>(defaultStart);
   const [end, setEnd] = useState<string>(today);
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
 
   // Data
-  type KardexResponse = Awaited<ReturnType<typeof reportsService.getKardex>>;
   type SalesResponse = Awaited<ReturnType<typeof reportsService.getSalesReport>>;
   type ProfitResponse = Awaited<ReturnType<typeof reportsService.getProfitabilityReport>>;
-  const [kardex, setKardex] = useState<KardexResponse | null>(null);
   const [sales, setSales] = useState<SalesResponse | null>(null);
   const [profit, setProfit] = useState<ProfitResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Cargar productos y bodegas al montar
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Cargar productos
-        const productsData = await inventarioService.getProducts();
-        const productList = Array.isArray(productsData) ? productsData : (productsData as { results?: Product[] }).results || [];
-        setProducts(productList.map((p) => ({ id: p.id, name: p.name, sku: p.sku || '' })));
-
-        // Cargar bodegas
-        const warehousesData = await inventarioService.getWarehouses();
-        const warehouseList = Array.isArray(warehousesData) ? warehousesData : (warehousesData as { results?: Warehouse[] }).results || [];
-        setWarehouses(warehouseList.map((w) => ({ id: w.id, name: w.name })));
-      } catch (err) {
-        console.error('Error loading data:', err);
-      }
-    };
-    loadData();
-  }, []);
-
   const load = async () => {
     setLoading(true);
     try {
-      if (activeTab === 'kardex') {
-        if (!productId) {
-          alert('Por favor, seleccione un producto');
-          return;
-        }
-        console.log('Loading kardex for product:', productId);
-        const data = await reportsService.getKardex({ product_id: Number(productId), warehouse_id: warehouseId ? Number(warehouseId) : undefined, start_date: start, end_date: end });
-        console.log('Kardex data:', data);
-        setKardex(data);
-      } else if (activeTab === 'sales') {
+      if (activeTab === 'sales') {
         console.log('Loading sales report:', { start, end, group_by: groupBy });
         const data = await reportsService.getSalesReport({ start, end, group_by: groupBy });
         console.log('Sales data:', data);
@@ -94,10 +47,7 @@ export const ReportsPage: React.FC = () => {
 
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
-    if (activeTab === 'kardex' && kardex) {
-      const ws = XLSX.utils.json_to_sheet(kardex.rows);
-      XLSX.utils.book_append_sheet(wb, ws, 'Kardex');
-    } else if (activeTab === 'sales' && sales) {
+    if (activeTab === 'sales' && sales) {
       const ws = XLSX.utils.json_to_sheet(sales.rows);
       XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
     } else if (activeTab === 'profit' && profit) {
@@ -115,13 +65,7 @@ export const ReportsPage: React.FC = () => {
     const toCell = (v: unknown): string | number =>
       typeof v === 'number' || typeof v === 'string' ? v : '';
 
-    if (activeTab === 'kardex' && kardex) {
-      type KardexRow = KardexResponse['rows'][number];
-      const kColumns: Array<keyof KardexRow> = ['date', 'warehouse_name', 'type', 'quantity', 'delta', 'balance', 'notes'];
-      columns = kColumns as string[];
-      rows = kardex.rows.map((r) => kColumns.map((c) => toCell(r[c])));
-      doc.text(`Kardex Producto ${kardex.product?.name || kardex.product?.id}`, 14, 16);
-    } else if (activeTab === 'sales' && sales) {
+    if (activeTab === 'sales' && sales) {
       type SalesRow = SalesResponse['rows'][number];
       const sColumns: Array<keyof SalesRow> = ['period', 'total_sales', 'total_orders', 'products_sold', 'average_order_value'];
       columns = sColumns as string[];
@@ -151,7 +95,6 @@ export const ReportsPage: React.FC = () => {
 
       {/* Tabs */}
       <div className="mb-4 border-b flex gap-2">
-        <button className={`px-4 py-2 ${activeTab==='kardex'?'border-b-2 border-primary-600 text-primary-700':'text-gray-600'}`} onClick={()=>setActiveTab('kardex')}><PackageSearch className="inline w-4 h-4 mr-1"/> Kardex</button>
         <button className={`px-4 py-2 ${activeTab==='sales'?'border-b-2 border-primary-600 text-primary-700':'text-gray-600'}`} onClick={()=>setActiveTab('sales')}><BarChart3 className="inline w-4 h-4 mr-1"/> Ventas</button>
         <button className={`px-4 py-2 ${activeTab==='profit'?'border-b-2 border-primary-600 text-primary-700':'text-gray-600'}`} onClick={()=>setActiveTab('profit')}><BarChart3 className="inline w-4 h-4 mr-1"/> Rentabilidad</button>
       </div>
@@ -167,40 +110,6 @@ export const ReportsPage: React.FC = () => {
             <label className="label">Fin</label>
             <input type="date" value={end} onChange={e=>setEnd(e.target.value)} className="input"/>
           </div>
-          {activeTab==='kardex' && (
-            <>
-              <div>
-                <label className="label">Producto</label>
-                <select 
-                  value={productId} 
-                  onChange={e=>setProductId(e.target.value ? Number(e.target.value) : '')} 
-                  className="input"
-                >
-                  <option value="">Seleccione un producto</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} {p.sku ? `(${p.sku})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">Bodega (opcional)</label>
-                <select 
-                  value={warehouseId} 
-                  onChange={e=>setWarehouseId(e.target.value ? Number(e.target.value) : '')} 
-                  className="input"
-                >
-                  <option value="">Todas las bodegas</option>
-                  {warehouses.map(w => (
-                    <option key={w.id} value={w.id}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
-          )}
           {activeTab==='sales' && (
             <div>
               <label className="label">Agrupar por</label>
@@ -222,59 +131,6 @@ export const ReportsPage: React.FC = () => {
           <p className="text-gray-500">Cargando...</p>
         ) : (
           <>
-            {activeTab==='kardex' && !productId && (
-              <div className="flex items-center gap-2 p-4 bg-blue-50 border border-blue-200 rounded text-blue-700">
-                <PackageSearch className="w-5 h-5"/>
-                <span>Por favor, ingrese un <b>Producto ID</b> y haga clic en <b>Aplicar</b> para ver el Kardex.</span>
-              </div>
-            )}
-            {activeTab==='kardex' && productId && !kardex && (
-              <div className="flex items-center gap-2 p-4 bg-gray-50 border border-gray-200 rounded text-gray-600">
-                <PackageSearch className="w-5 h-5"/>
-                <span>Haga clic en <b>Aplicar</b> para cargar el Kardex del producto {productId}.</span>
-              </div>
-            )}
-            {activeTab==='kardex' && kardex && (
-              <div>
-                <p className="text-sm text-gray-600 mb-2">Producto: <b>{kardex.product?.name || kardex.product?.id}</b> · Desde {kardex.start_date} hasta {kardex.end_date}</p>
-                {kardex.rows.length === 0 && (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded text-yellow-700 mb-4">
-                    No se encontraron movimientos de inventario para este producto en el rango de fechas seleccionado.
-                  </div>
-                )}
-                {kardex.rows.length > 0 && (
-                  <div className="max-h-96 overflow-auto border rounded">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50">
-                          <th className="p-2 text-left">Fecha</th>
-                          <th className="p-2 text-left">Bodega</th>
-                          <th className="p-2 text-left">Tipo</th>
-                          <th className="p-2 text-right">Cantidad</th>
-                          <th className="p-2 text-right">Δ</th>
-                          <th className="p-2 text-right">Balance</th>
-                          <th className="p-2 text-left">Notas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {kardex.rows.map((r, idx)=> (
-                          <tr key={idx} className="border-t">
-                            <td className="p-2">{r.date}</td>
-                            <td className="p-2">{r.warehouse_name || r.warehouse_id}</td>
-                            <td className="p-2">{r.type}</td>
-                            <td className="p-2 text-right">{r.quantity}</td>
-                            <td className="p-2 text-right">{r.delta}</td>
-                            <td className="p-2 text-right">{r.balance}</td>
-                            <td className="p-2">{r.notes || ''}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
             {activeTab==='sales' && !sales && (
               <div className="flex items-center gap-2 p-4 bg-gray-50 border border-gray-200 rounded text-gray-600">
                 <BarChart3 className="w-5 h-5"/>

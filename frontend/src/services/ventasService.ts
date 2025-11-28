@@ -50,6 +50,16 @@ export const ventasService = {
     return response.data;
   },
 
+  confirmOrder: async (id: number): Promise<Order> => {
+    const response = await apiClient.post(`${API_URLS.VENTAS}/api/ventas/orders/${id}/confirm/`);
+    return response.data;
+  },
+
+  cancelOrderWithReservations: async (id: number): Promise<Order> => {
+    const response = await apiClient.post(`${API_URLS.VENTAS}/api/ventas/orders/${id}/cancel/`);
+    return response.data;
+  },
+
   getCustomerOrderHistory: async (customerId: number, limit: number = 10): Promise<{ count: number; customer_id: number; orders: Order[] }> => {
     const response = await apiClient.get(`${API_URLS.VENTAS}/api/ventas/orders/customer_history/`, {
       params: {

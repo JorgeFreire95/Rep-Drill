@@ -36,6 +36,10 @@ export const ReordersPage: React.FC = () => {
   const [historyMap, setHistoryMap] = useState<Record<number, ReorderStatusHistory[]>>({});
   const [loadingHistory, setLoadingHistory] = useState<number | null>(null);
   
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  
   // Modal para crear nueva reorden
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [lowStockProducts, setLowStockProducts] = useState<ProductWithAlert[]>([]);
@@ -115,7 +119,16 @@ export const ReordersPage: React.FC = () => {
       );
     }
     setFilteredItems(result);
+    // Reset a página 1 cuando cambian los filtros
+    setCurrentPage(1);
   }, [items, statusFilter, debouncedSearch]);
+
+  // Paginación
+  const totalPages = Math.ceil(filteredItems.length / pageSize);
+  const paginatedItems = filteredItems.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   // Cargar historial de un reorden
   const loadHistory = async (id: number) => {
@@ -362,7 +375,7 @@ export const ReordersPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredItems.map((it) => (
+                paginatedItems.map((it) => (
                   <React.Fragment key={it.id}>
                     <tr className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-4 py-3">
@@ -460,6 +473,52 @@ export const ReordersPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        
+        {/* Paginación */}
+        {filteredItems.length > pageSize && (
+          <div className="mt-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between p-4">
+              <div className="text-sm text-gray-600">
+                Mostrando {((currentPage - 1) * pageSize) + 1} a {Math.min(currentPage * pageSize, filteredItems.length)} de {filteredItems.length} solicitudes
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  ← Anterior
+                </button>
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                    const pageNum = i + 1;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`px-3 py-2 text-sm font-medium rounded-md ${
+                          currentPage === pageNum
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                  {totalPages > 5 && <span className="text-gray-500">...</span>}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal para crear nueva reorden */}

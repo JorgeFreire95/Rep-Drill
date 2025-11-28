@@ -47,12 +47,6 @@ export const LoginPage: React.FC = () => {
           <p className="text-gray-600 mt-2">Gestión empresarial inteligente</p>
         </div>
 
-        {/* Info banner */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-          <p className="text-sm text-blue-800">
-            <strong>ℹ️ Acceso de empleados:</strong> Sistema disponible solo para empleados autorizados.
-          </p>
-        </div>
 
         {/* Login form */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
@@ -102,11 +96,7 @@ export const LoginPage: React.FC = () => {
             </Button>
           </form>
 
-          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-xs text-amber-800 text-center">
-              Si no tienes acceso al sistema, contacta a tu administrador.
-            </p>
-          </div>
+          {/* Mensaje de ayuda eliminado a solicitud: se puede reactivar si se requiere */}
         </div>
 
         <p className="text-center text-sm text-gray-500 mt-8">

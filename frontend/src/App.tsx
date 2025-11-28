@@ -19,10 +19,11 @@ import {
   SuppliersPage,
   ReportsPage,
   AuditLogsPage,
+  ActiveReservationsDashboard,
+  ForecastAccuracyDashboard,
 } from './pages';
 
 // Lazy Loading para páginas pesadas con gráficos y análisis
-const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const ForecastingPage = lazy(() => import('./pages/ForecastingPage'));
 
 function AppContent() {
@@ -83,15 +84,13 @@ function AppContent() {
           <Route path="crear-orden" element={<CreateOrderPage />} />
           <Route path="usuarios" element={<UsersManagementPage />} />
           
+          {/* Fase 2: Dashboard de Reservas Activas */}
+          <Route path="reservations" element={<ActiveReservationsDashboard />} />
+          
+          {/* Fase 3: Dashboard de Precisión de Pronósticos */}
+          <Route path="forecast-accuracy" element={<ForecastAccuracyDashboard />} />
+          
           {/* Páginas pesadas con lazy loading */}
-          <Route 
-            path="analytics" 
-            element={
-              <Suspense fallback={<SuspenseFallback />}>
-                <AnalyticsPage />
-              </Suspense>
-            } 
-          />
           <Route 
             path="forecasting" 
             element={

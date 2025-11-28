@@ -12,3 +12,5 @@ export { ReordersPage } from './ReordersPage';
 export { SuppliersPage } from './SuppliersPage';
 export { ReportsPage } from './ReportsPage';
 export { AuditLogsPage } from './AuditLogsPage';
+export { ActiveReservationsDashboard } from './ActiveReservationsDashboard';
+export { ForecastAccuracyDashboard } from './ForecastAccuracyDashboard';

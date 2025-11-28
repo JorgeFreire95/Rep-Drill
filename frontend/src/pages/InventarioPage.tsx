@@ -40,6 +40,14 @@ export const InventarioPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState<string>('all');
   
+  // Estados de paginación
+  const [currentProductPage, setCurrentProductPage] = useState(1);
+  const [productPageSize] = useState(20);
+  const [currentCategoryPage, setCurrentCategoryPage] = useState(1);
+  const [categoryPageSize] = useState(20);
+  const [currentWarehousePage, setCurrentWarehousePage] = useState(1);
+  const [warehousePageSize] = useState(20);
+  
   // Estados para menús de exportación
   const [showProductsExportMenu, setShowProductsExportMenu] = useState(false);
   const [showCategoriesExportMenu, setShowCategoriesExportMenu] = useState(false);
@@ -368,6 +376,27 @@ export const InventarioPage: React.FC = () => {
     b.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Paginación para productos
+  const totalProductPages = Math.ceil(filteredProductos.length / productPageSize);
+  const paginatedProductos = filteredProductos.slice(
+    (currentProductPage - 1) * productPageSize,
+    currentProductPage * productPageSize
+  );
+
+  // Paginación para categorías
+  const totalCategoryPages = Math.ceil(filteredCategorias.length / categoryPageSize);
+  const paginatedCategorias = filteredCategorias.slice(
+    (currentCategoryPage - 1) * categoryPageSize,
+    currentCategoryPage * categoryPageSize
+  );
+
+  // Paginación para bodegas
+  const totalWarehousePages = Math.ceil(filteredBodegas.length / warehousePageSize);
+  const paginatedBodegas = filteredBodegas.slice(
+    (currentWarehousePage - 1) * warehousePageSize,
+    currentWarehousePage * warehousePageSize
+  );
+
   return (
     <div>
       {/* Header */}
@@ -669,7 +698,7 @@ export const InventarioPage: React.FC = () => {
         {activeTab === 'productos' && (
           <>
             <ProductosTable
-              productos={filteredProductos}
+              productos={paginatedProductos}
               isLoading={isLoadingProductos}
               onEdit={handleEditProducto}
               onDelete={handleDeleteProducto}
@@ -677,7 +706,53 @@ export const InventarioPage: React.FC = () => {
             />
             {!isLoadingProductos && filteredProductos.length > 0 && (
               <div className="mt-4 text-sm text-gray-600">
-                Mostrando {filteredProductos.length} producto{filteredProductos.length !== 1 ? 's' : ''}
+                Mostrando {((currentProductPage - 1) * productPageSize) + 1} a {Math.min(currentProductPage * productPageSize, filteredProductos.length)} de {filteredProductos.length} producto{filteredProductos.length !== 1 ? 's' : ''}
+              </div>
+            )}
+            
+            {/* Paginación para productos */}
+            {filteredProductos.length > productPageSize && (
+              <div className="mt-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between p-4">
+                  <div className="text-sm text-gray-600">
+                    Página {currentProductPage} de {totalProductPages}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentProductPage(Math.max(1, currentProductPage - 1))}
+                      disabled={currentProductPage === 1}
+                      className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ← Anterior
+                    </button>
+                    <div className="flex items-center gap-2">
+                      {Array.from({ length: Math.min(5, totalProductPages) }).map((_, i) => {
+                        const pageNum = i + 1;
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentProductPage(pageNum)}
+                            className={`px-3 py-2 text-sm font-medium rounded-md ${
+                              currentProductPage === pageNum
+                                ? 'bg-primary-600 text-white'
+                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                      {totalProductPages > 5 && <span className="text-gray-500">...</span>}
+                    </div>
+                    <button
+                      onClick={() => setCurrentProductPage(Math.min(totalProductPages, currentProductPage + 1))}
+                      disabled={currentProductPage === totalProductPages}
+                      className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Siguiente →
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </>
@@ -686,14 +761,60 @@ export const InventarioPage: React.FC = () => {
         {activeTab === 'categorias' && (
           <>
             <CategoriasTable
-              categorias={filteredCategorias}
+              categorias={paginatedCategorias}
               isLoading={isLoadingCategorias}
               onEdit={handleEditCategoria}
               onDelete={handleDeleteCategoria}
             />
             {!isLoadingCategorias && filteredCategorias.length > 0 && (
               <div className="mt-4 text-sm text-gray-600">
-                Mostrando {filteredCategorias.length} categoría{filteredCategorias.length !== 1 ? 's' : ''}
+                Mostrando {((currentCategoryPage - 1) * categoryPageSize) + 1} a {Math.min(currentCategoryPage * categoryPageSize, filteredCategorias.length)} de {filteredCategorias.length} categoría{filteredCategorias.length !== 1 ? 's' : ''}
+              </div>
+            )}
+            
+            {/* Paginación para categorías */}
+            {filteredCategorias.length > categoryPageSize && (
+              <div className="mt-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between p-4">
+                  <div className="text-sm text-gray-600">
+                    Página {currentCategoryPage} de {totalCategoryPages}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentCategoryPage(Math.max(1, currentCategoryPage - 1))}
+                      disabled={currentCategoryPage === 1}
+                      className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ← Anterior
+                    </button>
+                    <div className="flex items-center gap-2">
+                      {Array.from({ length: Math.min(5, totalCategoryPages) }).map((_, i) => {
+                        const pageNum = i + 1;
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentCategoryPage(pageNum)}
+                            className={`px-3 py-2 text-sm font-medium rounded-md ${
+                              currentCategoryPage === pageNum
+                                ? 'bg-primary-600 text-white'
+                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                      {totalCategoryPages > 5 && <span className="text-gray-500">...</span>}
+                    </div>
+                    <button
+                      onClick={() => setCurrentCategoryPage(Math.min(totalCategoryPages, currentCategoryPage + 1))}
+                      disabled={currentCategoryPage === totalCategoryPages}
+                      className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Siguiente →
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </>
@@ -702,14 +823,60 @@ export const InventarioPage: React.FC = () => {
         {activeTab === 'bodegas' && (
           <>
             <BodegasTable
-              bodegas={filteredBodegas}
+              bodegas={paginatedBodegas}
               isLoading={isLoadingBodegas}
               onEdit={handleEditBodega}
               onDelete={handleDeleteBodega}
             />
             {!isLoadingBodegas && filteredBodegas.length > 0 && (
               <div className="mt-4 text-sm text-gray-600">
-                Mostrando {filteredBodegas.length} bodega{filteredBodegas.length !== 1 ? 's' : ''}
+                Mostrando {((currentWarehousePage - 1) * warehousePageSize) + 1} a {Math.min(currentWarehousePage * warehousePageSize, filteredBodegas.length)} de {filteredBodegas.length} bodega{filteredBodegas.length !== 1 ? 's' : ''}
+              </div>
+            )}
+            
+            {/* Paginación para bodegas */}
+            {filteredBodegas.length > warehousePageSize && (
+              <div className="mt-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between p-4">
+                  <div className="text-sm text-gray-600">
+                    Página {currentWarehousePage} de {totalWarehousePages}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentWarehousePage(Math.max(1, currentWarehousePage - 1))}
+                      disabled={currentWarehousePage === 1}
+                      className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ← Anterior
+                    </button>
+                    <div className="flex items-center gap-2">
+                      {Array.from({ length: Math.min(5, totalWarehousePages) }).map((_, i) => {
+                        const pageNum = i + 1;
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentWarehousePage(pageNum)}
+                            className={`px-3 py-2 text-sm font-medium rounded-md ${
+                              currentWarehousePage === pageNum
+                                ? 'bg-primary-600 text-white'
+                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                      {totalWarehousePages > 5 && <span className="text-gray-500">...</span>}
+                    </div>
+                    <button
+                      onClick={() => setCurrentWarehousePage(Math.min(totalWarehousePages, currentWarehousePage + 1))}
+                      disabled={currentWarehousePage === totalWarehousePages}
+                      className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Siguiente →
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </>

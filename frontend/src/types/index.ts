@@ -194,6 +194,29 @@ export interface InventoryEvent {
   notes?: string;
 }
 
+// ==================== STOCK RESERVATIONS ====================
+export type ReservationStatus = 'pending' | 'confirmed' | 'released' | 'expired';
+
+export interface StockReservation {
+  id: number;
+  product: number;
+  product_name?: string;
+  quantity: number;
+  order_id: string | null;
+  status: ReservationStatus;
+  reserved_at: string;
+  expires_at: string | null;
+  confirmed_at: string | null;
+  released_at: string | null;
+}
+
+export interface ReservationSummary {
+  active_count: number;
+  total_reserved_quantity: number;
+  expiring_soon: number;
+  reservations: StockReservation[];
+}
+
 // ==================== REORDERS ====================
 export type ReorderStatus = 'requested' | 'ordered' | 'received' | 'cancelled';
 
@@ -218,6 +241,33 @@ export interface ReorderStatusHistory {
   changed_by: string | null;
   changed_at: string;
   notes: string | null;
+}
+
+// ==================== FORECAST ACCURACY ====================
+export interface ForecastProductAccuracy {
+  id: number;
+  product_id: number;
+  product_name: string;
+  product_sku: string;
+  start_date: string;
+  end_date: string;
+  mape: number;  // Mean Absolute Percentage Error
+  mae: number;   // Mean Absolute Error
+  record_count: number;
+  created_at: string;
+}
+
+export interface ForecastCategoryAccuracy {
+  id: number;
+  category_id: number;
+  category_name: string;
+  start_date: string;
+  end_date: string;
+  mape: number;
+  mae: number;
+  record_count: number;
+  product_count: number;
+  created_at: string;
 }
 
 // ==================== VENTAS ====================

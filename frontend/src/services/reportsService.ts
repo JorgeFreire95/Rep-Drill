@@ -3,28 +3,6 @@ import apiClient, { API_URLS } from './api';
 export type GroupBy = 'day' | 'week' | 'month';
 
 export const reportsService = {
-  // Inventario - Kardex
-  getKardex: async (params: { product_id: number; warehouse_id?: number; start_date?: string; end_date?: string }) => {
-    const { data } = await apiClient.get(`${API_URLS.INVENTARIO}/api/reports/kardex/`, { params });
-    return data as {
-      product: { id: number; name?: string; sku?: string };
-      warehouse_id?: number | null;
-      start_date: string;
-      end_date: string;
-      opening_balance: number;
-      rows: Array<{
-        date: string;
-        warehouse_id: number;
-        warehouse_name?: string;
-        type: string;
-        quantity: number;
-        delta: number;
-        balance: number;
-        notes?: string;
-      }>;
-    };
-  },
-
   // Analytics - Ventas por período
   getSalesReport: async (params: { start?: string; end?: string; group_by?: GroupBy }) => {
   const { data } = await apiClient.get(`${API_URLS.PREDICCIONES}/api/reports/sales/`, { params });

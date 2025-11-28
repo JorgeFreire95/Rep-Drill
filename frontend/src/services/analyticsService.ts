@@ -84,4 +84,31 @@ export const analyticsService = {
     });
     return res.data;
   },
+
+  // Forecast Accuracy Metrics
+  getForecastProductAccuracy: async (params?: {
+    product_id?: number;
+    start_date?: string;
+    end_date?: string;
+  }) => {
+    const res = await apiClient.get(`${API_URLS.PREDICCIONES}/api/forecast-accuracy/products/`, { params });
+    return res.data;
+  },
+
+  getForecastCategoryAccuracy: async (params?: {
+    category_id?: number;
+    start_date?: string;
+    end_date?: string;
+  }) => {
+    const res = await apiClient.get(`${API_URLS.PREDICCIONES}/api/forecast-accuracy/categories/`, { params });
+    return res.data;
+  },
+
+  invalidateForecastCache: async (productIds?: number[], invalidateTotal?: boolean) => {
+    const res = await apiClient.post(`${API_URLS.PREDICCIONES}/api/prophet/invalidate/`, {
+      product_ids: productIds,
+      invalidate_total: invalidateTotal
+    });
+    return res.data;
+  },
 };

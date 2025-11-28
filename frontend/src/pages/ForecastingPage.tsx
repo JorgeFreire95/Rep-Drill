@@ -13,23 +13,20 @@ import {
   ResponsiveContainer,
   ComposedChart,
 } from 'recharts';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, Activity, AlertTriangle } from 'lucide-react';
+import { Card } from '../components/common';
+import { Cell } from 'recharts';
 import forecastingService, {
   type ForecastData,
   type RestockRecommendation,
   type ProphetComponents,
 } from '../services/forecastingService';
-import catalogService, { type CategoryOption, type WarehouseOption } from '../services/catalogService';
+// import catalogService from '../services/catalogService'; // Commented out - not using category/warehouse forecasts
 import ChatbotPanel from '../components/chatbot/ChatbotPanel';
 import '../styles/ForecastingPage.css';
 import { logger } from '../utils/logger';
 
-interface DashboardStats {
-  criticalItems: number;
-  urgentItems: number;
-  avgAccuracy: number;
-  totalRecommendations: number;
-}
+// (DashboardStats removido: ya no se renderiza en Option C)
 
 interface TopProductForecast {
   product_id: number;
@@ -38,17 +35,26 @@ interface TopProductForecast {
   forecast: ForecastData[];
 }
 
+
+const PRIORITY_COLORS = {
+  critical: '#EF4444',
+  urgent: '#F97316',
+  high: '#F59E0B',
+  medium: '#10B981',
+  low: '#6B7280',
+};
+
 const ForecastingPage: React.FC = () => {
   // State
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'forecast' | 'top' | 'sales30' | 'category' | 'warehouse' | 'restock' | 'components' | 'accuracy'>('forecast');
+  const [activeTab, setActiveTab] = useState<'forecast' | 'top' | 'restock' | 'components'>('forecast');
   
   // Forecast data
   const [salesForecast, setSalesForecast] = useState<ForecastData[]>([]);
-  const [salesForecast30, setSalesForecast30] = useState<ForecastData[]>([]);
+  // const [salesForecast30, setSalesForecast30] = useState<ForecastData[]>([]);
   const [forecastPeriods, setForecastPeriods] = useState(30);
   const [topForecasts, setTopForecasts] = useState<TopProductForecast[]>([]);
-  const [topN, setTopN] = useState(5);
+  const [topN, setTopN] = useState(10);
   const [topPeriods, setTopPeriods] = useState(30);
   // Eliminado pronóstico por producto
   
@@ -58,23 +64,17 @@ const ForecastingPage: React.FC = () => {
   
   // Components data
   const [components, setComponents] = useState<ProphetComponents | null>(null);
-  // Aggregated forecasts
-  const [categoryId, setCategoryId] = useState<number | ''>('');
-  const [categoryForecast, setCategoryForecast] = useState<ForecastData[] | null>(null);
-  const [warehouseId, setWarehouseId] = useState<number | ''>('');
-  const [warehouseForecast, setWarehouseForecast] = useState<ForecastData[] | null>(null);
-  const [categories, setCategories] = useState<CategoryOption[]>([]);
-  const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
-  const [loadingCategory, setLoadingCategory] = useState(false);
-  const [loadingWarehouse, setLoadingWarehouse] = useState(false);
+  // Aggregated forecasts - Commented out unused states
+  // const [categoryId, setCategoryId] = useState<number | ''>('');
+  // const [categoryForecast, setCategoryForecast] = useState<ForecastData[] | null>(null);
+  // const [warehouseId, setWarehouseId] = useState<number | ''>('');
+  // const [warehouseForecast, setWarehouseForecast] = useState<ForecastData[] | null>(null);
+  // const [categories, setCategories] = useState<CategoryOption[]>([]);
+  // const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
+  // const [loadingCategory, setLoadingCategory] = useState(false);
+  // const [loadingWarehouse, setLoadingWarehouse] = useState(false);
   
-  // Stats
-  const [stats, setStats] = useState<DashboardStats>({
-    criticalItems: 0,
-    urgentItems: 0,
-    avgAccuracy: 0,
-    totalRecommendations: 0,
-  });
+  // Stats (no longer rendered, kept for future use if needed)
 
   // Chatbot
   const [chatOpen, setChatOpen] = useState(false);
@@ -85,23 +85,22 @@ const ForecastingPage: React.FC = () => {
     setLoading(true);
     try {
       // Carga inicial independiente de funciones auxiliares para evitar dependencias en hooks
-      const [sales, top, recs, dashStats] = await Promise.all([
+      const [sales, top, recs, comps] = await Promise.all([
         forecastingService.getSalesForecast(30),
-        forecastingService.getTopProductsForecast(5, 30),
+        forecastingService.getTopProductsForecast(10, 30),
         forecastingService.getRecommendations(),
-        forecastingService.getDashboardStats(),
+        forecastingService.getForecastComponents(undefined, 90),
       ]);
 
       setSalesForecast(sales);
-      setSalesForecast30(sales);
+      // setSalesForecast30(sales);
       setTopForecasts(top);
       setRecommendations(recs);
-      setStats({
-        criticalItems: dashStats.critical_count || 0,
-        urgentItems: dashStats.urgent_count || 0,
-        avgAccuracy: dashStats.forecast_accuracy || 0,
-        totalRecommendations: dashStats.total_recommendations || 0,
-      });
+      setComponents(comps);
+      
+      // Calcular métricas para tarjetas (Option C)
+      
+      // (Tarjetas de overview eliminadas)
     } catch (error) {
       logger.error('Error loading dashboard:', error);
     } finally {
@@ -114,9 +113,10 @@ const ForecastingPage: React.FC = () => {
     void loadDashboardData();
   }, [loadDashboardData]);
 
-  const loadSalesForecast = async () => {
+  const loadSalesForecast = async (periods?: number) => {
     try {
-      const data = await forecastingService.getSalesForecast(forecastPeriods);
+      const periodsToUse = periods !== undefined ? periods : forecastPeriods;
+      const data = await forecastingService.getSalesForecast(periodsToUse);
       setSalesForecast(data);
     } catch (error) {
       logger.error('Error loading forecast:', error);
@@ -152,65 +152,52 @@ const ForecastingPage: React.FC = () => {
     }
   };
 
-  const loadCategoryForecast = async () => {
-    if (!categoryId) { setCategoryForecast(null); return; }
-    setLoadingCategory(true);
-    try {
-      const data = await forecastingService.getCategoryForecast(Number(categoryId), 30);
-      setCategoryForecast(data.forecast || []);
-    } catch (error) {
-      logger.error('Error loading category forecast:', error);
-      setCategoryForecast([]);
-    } finally {
-      setLoadingCategory(false);
-    }
-  };
+  // const loadCategoryForecast = async () => {
+  //   if (!categoryId) { setCategoryForecast(null); return; }
+  //   setLoadingCategory(true);
+  //   try {
+  //     const data = await forecastingService.getCategoryForecast(Number(categoryId), 30);
+  //     setCategoryForecast(data.forecast || []);
+  //   } catch (error) {
+  //     logger.error('Error loading category forecast:', error);
+  //     setCategoryForecast([]);
+  //   } finally {
+  //     setLoadingCategory(false);
+  //   }
+  // };
 
-  const loadWarehouseForecast = async () => {
-    if (!warehouseId) { setWarehouseForecast(null); return; }
-    setLoadingWarehouse(true);
-    try {
-      const data = await forecastingService.getWarehouseForecast(Number(warehouseId), 30);
-      setWarehouseForecast(data.forecast || []);
-    } catch (error) {
-      logger.error('Error loading warehouse forecast:', error);
-      setWarehouseForecast([]);
-    } finally {
-      setLoadingWarehouse(false);
-    }
-  };
+  // const loadWarehouseForecast = async () => {
+  //   if (!warehouseId) { setWarehouseForecast(null); return; }
+  //   setLoadingWarehouse(true);
+  //   try {
+  //     const data = await forecastingService.getWarehouseForecast(Number(warehouseId), 30);
+  //     setWarehouseForecast(data.forecast || []);
+  //   } catch (error) {
+  //     logger.error('Error loading warehouse forecast:', error);
+  //     setWarehouseForecast([]);
+  //   } finally {
+  //     setLoadingWarehouse(false);
+  //   }
+  // };
 
   // Cargar catálogos al entrar a la página (y en tabs específicos)
   useEffect(() => {
-    (async () => {
-      try {
-        const [cats, whs] = await Promise.all([
-          catalogService.getCategories(1000),
-          catalogService.getWarehouses(1000),
-        ]);
-        setCategories(cats);
-        setWarehouses(whs);
-      } catch (e) {
-        logger.error('Error loading catalogs', e);
-      }
-    })();
+    // Load catalogs (commented out - not using category/warehouse forecasts)
+    // (async () => {
+    //   try {
+    //     const [cats, whs] = await Promise.all([
+    //       catalogService.getCategories(1000),
+    //       catalogService.getWarehouses(1000),
+    //     ]);
+    //     setCategories(cats);
+    //     setWarehouses(whs);
+    //   } catch (e) {
+    //     logger.error('Error loading catalogs', e);
+    //   }
+    // })();
   }, []);
 
-  const loadStats = async () => {
-    try {
-      const recs = await forecastingService.getRecommendations();
-      const accuracy = await forecastingService.getForecastAccuracy({ days: 30 });
-      
-      setStats({
-        criticalItems: recs.filter(r => r.reorder_priority === 'critical').length,
-        urgentItems: recs.filter(r => r.reorder_priority === 'urgent').length,
-        avgAccuracy: 100 - accuracy.avg_mape,
-        totalRecommendations: recs.length,
-      });
-    } catch (error) {
-      logger.error('Error loading stats:', error);
-    }
-  };
+  // loadStats eliminado (no se usan tarjetas KPI antiguas)
 
   const handleGenerateRecommendations = async () => {
     setLoading(true);
@@ -221,7 +208,6 @@ const ForecastingPage: React.FC = () => {
       });
       alert(`Generadas ${result.created} nuevas recomendaciones, ${result.updated} actualizadas`);
       await loadRecommendations();
-      await loadStats();
     } catch (error) {
       logger.error('Error generating recommendations:', error);
       alert('Error generando recomendaciones');
@@ -328,42 +314,22 @@ const ForecastingPage: React.FC = () => {
   // ================== Render Sections ==================
 
   const renderStats = () => (
-    <div className="stats-grid">
-      <div className="stat-card critical">
-        <h3>Críticos</h3>
-        <div className="stat-value">{stats.criticalItems}</div>
-        <p>Productos sin stock</p>
-      </div>
-      <div className="stat-card urgent">
-        <h3>Urgentes</h3>
-        <div className="stat-value">{stats.urgentItems}</div>
-        <p>Requieren reorden pronto</p>
-      </div>
-      <div className="stat-card accuracy">
-        <h3>Precisión</h3>
-        <div className="stat-value">{stats.avgAccuracy.toFixed(1)}%</div>
-        <p>Exactitud del forecast</p>
-      </div>
-      <div className="stat-card total">
-        <h3>Total</h3>
-        <div className="stat-value">{stats.totalRecommendations}</div>
-        <p>Recomendaciones activas</p>
-      </div>
-    </div>
+    <div className="simple-subtitle">Vista general de predicciones y acciones</div>
   );
 
   const renderForecastTab = () => (
     <div className="forecast-section">
       <div className="section-header">
-        <h2>Forecast de Ventas (Prophet)</h2>
+        <h2>Predicciones de Ventas</h2>
         <div className="controls">
           <label>
             Períodos:
             <select
               value={forecastPeriods}
               onChange={(e) => {
-                setForecastPeriods(Number(e.target.value));
-                loadSalesForecast();
+                const newPeriods = Number(e.target.value);
+                setForecastPeriods(newPeriods);
+                loadSalesForecast(newPeriods);
               }}
             >
               <option value={7}>7 días</option>
@@ -383,50 +349,231 @@ const ForecastingPage: React.FC = () => {
             dataKey="ds"
             tickFormatter={formatDate}
           />
-          <YAxis tickFormatter={(v) => formatCurrency(v)} />
+          <YAxis 
+            tickFormatter={(value) => {
+              if (value >= 1000000) {
+                return `$${(value / 1000000).toFixed(1)}M`;
+              } else if (value >= 1000) {
+                return `$${(value / 1000).toFixed(0)}K`;
+              }
+              return `$${value}`;
+            }}
+          />
           <Tooltip
             labelFormatter={(label) => new Date(label).toLocaleDateString('es-CL')}
-            formatter={(value: number) => [formatCurrency(value), 'Forecast']}
+            formatter={(value: number, name: string) => {
+              const formattedValue = formatCurrency(value);
+              let label = name;
+              if (name === 'yhat') label = 'Predicción';
+              else if (name === 'yhat_upper') label = 'Límite Superior';
+              else if (name === 'yhat_lower') label = 'Límite Inferior';
+              return [formattedValue, label];
+            }}
           />
-          <Legend />
+          <Legend 
+            formatter={(value) => {
+              if (value === 'yhat') return 'Predicción';
+              if (value === 'yhat_upper') return 'Límite Superior';
+              if (value === 'yhat_lower') return 'Límite Inferior';
+              return value;
+            }}
+          />
           
           {/* Confidence interval */}
           <Area
             type="monotone"
             dataKey="yhat_upper"
-            fill="#3b82f6"
-            fillOpacity={0.1}
-            stroke="none"
-            name="Límite superior"
+            fill="#10B981"
+            fillOpacity={0.15}
+            stroke="#10B981"
+            strokeWidth={1.5}
+            strokeDasharray="5 5"
+            name="yhat_upper"
           />
           <Area
             type="monotone"
             dataKey="yhat_lower"
-            fill="#3b82f6"
-            fillOpacity={0.1}
-            stroke="none"
-            name="Límite inferior"
+            fill="#10B981"
+            fillOpacity={0.15}
+            stroke="#10B981"
+            strokeWidth={1.5}
+            strokeDasharray="5 5"
+            name="yhat_lower"
           />
           
           {/* Forecast line */}
           <Line
             type="monotone"
             dataKey="yhat"
-            stroke="#3b82f6"
-            strokeWidth={2}
+            stroke="#2563EB"
+            strokeWidth={3}
             dot={false}
-            name="Predicción"
+            name="yhat"
           />
         </ComposedChart>
       </ResponsiveContainer>
 
-      <div className="forecast-info">
-        <p>
-          <strong>Intervalo de confianza:</strong> 95%<br />
-          <strong>Modelo:</strong> Prophet (Meta/Facebook)<br />
-          <strong>Actualización:</strong> Diaria a las 5:00 AM
-        </p>
-      </div>
+      {/* Reorder Point Analysis */}
+      {!loading && recommendations.length > 0 && (
+        <Card className="mt-6">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Activity className="w-6 h-6 text-green-600" />
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Análisis de Puntos de Reorden</h2>
+                <p className="text-sm text-gray-600 mt-1">Cantidades óptimas de reorden y stock de seguridad</p>
+              </div>
+            </div>
+
+            <div className="w-full h-80 mb-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={recommendations.slice(0, 8)} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" tick={{ fontSize: 12 }} />
+                  <YAxis 
+                    type="category" 
+                    dataKey="product_name" 
+                    tick={{ fontSize: 11 }} 
+                    width={150}
+                    tickFormatter={(name) => name && name.length > 20 ? name.substring(0, 20) + '...' : name}
+                  />
+                  <Tooltip 
+                    formatter={(value, name) => {
+                      if (name === 'Stock Actual') return [`${value} unidades`, name];
+                      if (name === 'Punto de Reorden') return [`${value} unidades`, name];
+                      if (name === 'Cantidad Recomendada') return [`${value} unidades`, name];
+                      return [value, name];
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="current_stock" fill="#94A3B8" name="Stock Actual" />
+                  <Bar dataKey="reorder_point" fill="#F59E0B" name="Punto de Reorden" />
+                  <Bar dataKey="recommended_quantity" fill="#10B981" name="Cantidad Recomendada" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Producto</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Stock Actual</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Punto Reorden</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Cantidad Reorden</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Prioridad</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {recommendations.slice(0, 8).map((rec, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900">{rec.product_name}</div>
+                      </td>
+                      <td className="px-4 py-3 text-center">{rec.current_stock}</td>
+                      <td className="px-4 py-3 text-center font-medium text-orange-600">{rec.reorder_point}</td>
+                      <td className="px-4 py-3 text-center font-semibold text-green-600">{rec.recommended_quantity}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span 
+                          className="px-2 py-1 text-xs font-semibold rounded-full text-white"
+                          style={{ backgroundColor: PRIORITY_COLORS[rec.reorder_priority] }}
+                        >
+                          {rec.reorder_priority.toUpperCase()}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Stockout Risk Analysis */}
+      {!loading && recommendations.length > 0 && (
+        <Card className="mt-6">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <AlertTriangle className="w-6 h-6 text-red-600" />
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Análisis de Riesgo de Stockout</h2>
+                <p className="text-sm text-gray-600 mt-1">Probabilidad de quedarse sin stock y días estimados hasta agotamiento</p>
+              </div>
+            </div>
+
+            <div className="w-full h-80 mb-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={recommendations.slice(0, 10)}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="product_name" 
+                    tick={{ fontSize: 11 }} 
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                    tickFormatter={(name) => name && name.length > 15 ? name.substring(0, 15) + '...' : name}
+                  />
+                  <YAxis tick={{ fontSize: 12 }} label={{ value: 'Días hasta stockout', angle: -90, position: 'insideLeft' }} />
+                  <Tooltip 
+                    formatter={(value, name) => {
+                      if (name === 'Días hasta Stockout') {
+                        return value === null ? ['Sin riesgo inmediato', name] : [`${value} días`, name];
+                      }
+                      return [value, name];
+                    }}
+                    labelFormatter={(label) => `Producto: ${label}`}
+                  />
+                  <Legend />
+                  <Bar dataKey="days_until_stockout" name="Días hasta Stockout">
+                    {recommendations.slice(0, 10).map((rec, index) => (
+                      <Cell key={`cell-${index}`} fill={PRIORITY_COLORS[rec.reorder_priority]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Producto</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Stock Actual</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Días hasta Stockout</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Nivel de Riesgo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {recommendations.slice(0, 10).map((rec, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900">{rec.product_name}</div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={rec.current_stock === 0 ? 'font-bold text-red-600' : ''}>{rec.current_stock}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="font-semibold" style={{ color: PRIORITY_COLORS[rec.reorder_priority] }}>
+                          {rec.days_until_stockout !== null && rec.days_until_stockout !== undefined ? `${rec.days_until_stockout} días` : 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span 
+                          className="px-2 py-1 text-xs font-semibold rounded-full text-white"
+                          style={{ backgroundColor: PRIORITY_COLORS[rec.reorder_priority] }}
+                        >
+                          {rec.reorder_priority.toUpperCase()}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 
@@ -470,10 +617,28 @@ const ForecastingPage: React.FC = () => {
               <ResponsiveContainer>
                 <ComposedChart data={item.forecast}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="ds" tickFormatter={formatDate} />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="yhat" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                  <XAxis 
+                    dataKey="ds" 
+                    tickFormatter={formatDate}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(value) => {
+                      if (value >= 1000) {
+                        return `${(value / 1000).toFixed(1)}K`;
+                      }
+                      return value.toFixed(0);
+                    }}
+                  />
+                  <Tooltip 
+                    labelFormatter={(label) => new Date(label).toLocaleDateString('es-CL')}
+                    formatter={(value: number) => {
+                      return [`${value.toFixed(2)} unidades`, 'Predicción'];
+                    }}
+                    contentStyle={{ fontSize: '12px' }}
+                  />
+                  <Line type="monotone" dataKey="yhat" stroke="#2563EB" strokeWidth={2} dot={false} name="Predicción" />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -483,38 +648,38 @@ const ForecastingPage: React.FC = () => {
     </div>
   );
 
-  const loadSalesForecast30 = async () => {
-    try {
-      const data = await forecastingService.getSalesForecast(30);
-      setSalesForecast30(data);
-    } catch (error) {
-      logger.error('Error loading 30-day sales forecast:', error);
-    }
-  };
+  // const loadSalesForecast30 = async () => {
+  //   try {
+  //     const data = await forecastingService.getSalesForecast(30);
+  //     setSalesForecast30(data);
+  //   } catch (error) {
+  //     logger.error('Error loading 30-day sales forecast:', error);
+  //   }
+  // };
 
-  const renderSales30Tab = () => (
-    <div className="forecast-section">
-      <div className="section-header">
-        <h2>Pronóstico de Ventas a 30 Días</h2>
-        <div className="controls">
-          <button className="btn-primary" onClick={loadSalesForecast30}>Actualizar</button>
-        </div>
-      </div>
+  // const renderSales30Tab = () => (
+  //   <div className="forecast-section">
+  //     <div className="section-header">
+  //       <h2>Pronóstico de Ventas a 30 Días</h2>
+  //       <div className="controls">
+  //         <button className="btn-primary" onClick={loadSalesForecast30}>Actualizar</button>
+  //       </div>
+  //     </div>
 
-      <ResponsiveContainer width="100%" height={400}>
-        <ComposedChart data={salesForecast30}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="ds" tickFormatter={formatDate} />
-          <YAxis tickFormatter={(v) => formatCurrency(v)} />
-          <Tooltip labelFormatter={(label) => new Date(label).toLocaleDateString('es-CL')} />
-          <Legend />
-          <Area type="monotone" dataKey="yhat_upper" fill="#2563eb" fillOpacity={0.1} stroke="none" name="Límite superior" />
-          <Area type="monotone" dataKey="yhat_lower" fill="#2563eb" fillOpacity={0.1} stroke="none" name="Límite inferior" />
-          <Line type="monotone" dataKey="yhat" stroke="#2563eb" strokeWidth={2} dot={false} name="Predicción" />
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
-  );
+  //     <ResponsiveContainer width="100%" height={400}>
+  //       <ComposedChart data={salesForecast30}>
+  //         <CartesianGrid strokeDasharray="3 3" />
+  //         <XAxis dataKey="ds" tickFormatter={formatDate} />
+  //         <YAxis tickFormatter={(v) => formatCurrency(v)} />
+  //         <Tooltip labelFormatter={(label) => new Date(label).toLocaleDateString('es-CL')} />
+  //         <Legend />
+  //         <Area type="monotone" dataKey="yhat_upper" fill="#2563eb" fillOpacity={0.1} stroke="none" name="Límite superior" />
+  //         <Area type="monotone" dataKey="yhat_lower" fill="#2563eb" fillOpacity={0.1} stroke="none" name="Límite inferior" />
+  //         <Line type="monotone" dataKey="yhat" stroke="#2563eb" strokeWidth={2} dot={false} name="Predicción" />
+  //       </ComposedChart>
+  //     </ResponsiveContainer>
+  //   </div>
+  // );
 
   const renderRestockTab = () => {
     const filteredRecs = priorityFilter === 'all'
@@ -639,113 +804,136 @@ const ForecastingPage: React.FC = () => {
     );
   };
 
-  const renderCategoryTab = () => (
-    <div className="forecast-section">
-      <div className="section-header">
-        <h2>Pronóstico por Categoría</h2>
-        <div className="controls">
-          <label>
-            Categoría:
-            <select value={categoryId} onChange={(e)=> setCategoryId(e.target.value ? Number(e.target.value) : '')}>
-              <option value="">Selecciona categoría</option>
-              {categories.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </label>
-          <button className="btn-primary" onClick={loadCategoryForecast} disabled={!categoryId || loadingCategory}>
-            {loadingCategory ? 'Cargando…' : 'Ver Forecast'}
-          </button>
-        </div>
-      </div>
-      {loadingCategory && (
-        <div className="skeleton skeleton-rect" />
-      )}
-      {Array.isArray(categoryForecast) && categoryForecast.length > 0 && (
-        <ResponsiveContainer width="100%" height={400}>
-          <ComposedChart data={categoryForecast}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="ds" tickFormatter={formatDate} />
-            <YAxis tickFormatter={(v) => formatCurrency(v)} />
-            <Tooltip labelFormatter={(label) => new Date(label).toLocaleDateString('es-CL')} />
-            <Legend />
-            <Area type="monotone" dataKey="yhat_upper" fill="#0ea5e9" fillOpacity={0.1} stroke="none" />
-            <Area type="monotone" dataKey="yhat_lower" fill="#0ea5e9" fillOpacity={0.1} stroke="none" />
-            <Line type="monotone" dataKey="yhat" stroke="#0ea5e9" strokeWidth={2} dot={false} name="Predicción" />
-          </ComposedChart>
-        </ResponsiveContainer>
-      )}
-      {Array.isArray(categoryForecast) && categoryForecast.length === 0 && !loadingCategory && (
-        <div className="empty-state">No hay datos suficientes para esta categoría en el período seleccionado.</div>
-      )}
-    </div>
-  );
+  // const renderCategoryTab = () => (
+  //   <div className="forecast-section">
+  //     <div className="section-header">
+  //       <h2>Pronóstico por Categoría</h2>
+  //       <div className="controls">
+  //         <label>
+  //           Categoría:
+  //           <select value={categoryId} onChange={(e)=> setCategoryId(e.target.value ? Number(e.target.value) : '')}>
+  //             <option value="">Selecciona categoría</option>
+  //             {categories.map(c => (
+  //               <option key={c.id} value={c.id}>{c.name}</option>
+  //             ))}
+  //           </select>
+  //         </label>
+  //         <button className="btn-primary" onClick={loadCategoryForecast} disabled={!categoryId || loadingCategory}>
+  //           {loadingCategory ? 'Cargando…' : 'Ver Forecast'}
+  //         </button>
+  //       </div>
+  //     </div>
+  //     {loadingCategory && (
+  //       <div className="skeleton skeleton-rect" />
+  //     )}
+  //     {Array.isArray(categoryForecast) && categoryForecast.length > 0 && (
+  //       <ResponsiveContainer width="100%" height={400}>
+  //         <ComposedChart data={categoryForecast}>
+  //           <CartesianGrid strokeDasharray="3 3" />
+  //           <XAxis dataKey="ds" tickFormatter={formatDate} />
+  //           <YAxis tickFormatter={(v) => formatCurrency(v)} />
+  //           <Tooltip labelFormatter={(label) => new Date(label).toLocaleDateString('es-CL')} />
+  //           <Legend />
+  //           <Area type="monotone" dataKey="yhat_upper" fill="#0ea5e9" fillOpacity={0.1} stroke="none" />
+  //           <Area type="monotone" dataKey="yhat_lower" fill="#0ea5e9" fillOpacity={0.1} stroke="none" />
+  //           <Line type="monotone" dataKey="yhat" stroke="#0ea5e9" strokeWidth={2} dot={false} name="Predicción" />
+  //         </ComposedChart>
+  //       </ResponsiveContainer>
+  //     )}
+  //     {Array.isArray(categoryForecast) && categoryForecast.length === 0 && !loadingCategory && (
+  //       <div className="empty-state">No hay datos suficientes para esta categoría en el período seleccionado.</div>
+  //     )}
+  //   </div>
+  // );
 
-  const renderWarehouseTab = () => (
-    <div className="forecast-section">
-      <div className="section-header">
-        <h2>Pronóstico por Almacén</h2>
-        <div className="controls">
-          <label>
-            Almacén:
-            <select value={warehouseId} onChange={(e)=> setWarehouseId(e.target.value ? Number(e.target.value) : '')}>
-              <option value="">Selecciona almacén</option>
-              {warehouses.map(w => (
-                <option key={w.id} value={w.id}>{w.name}</option>
-              ))}
-            </select>
-          </label>
-          <button className="btn-primary" onClick={loadWarehouseForecast} disabled={!warehouseId || loadingWarehouse}>
-            {loadingWarehouse ? 'Cargando…' : 'Ver Forecast'}
-          </button>
-        </div>
-      </div>
-      {loadingWarehouse && (<div className="skeleton skeleton-rect" />)}
-      {Array.isArray(warehouseForecast) && warehouseForecast.length > 0 && (
-        <ResponsiveContainer width="100%" height={400}>
-          <ComposedChart data={warehouseForecast}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="ds" tickFormatter={formatDate} />
-            <YAxis tickFormatter={(v) => formatCurrency(v)} />
-            <Tooltip labelFormatter={(label) => new Date(label).toLocaleDateString('es-CL')} />
-            <Legend />
-            <Area type="monotone" dataKey="yhat_upper" fill="#f97316" fillOpacity={0.1} stroke="none" />
-            <Area type="monotone" dataKey="yhat_lower" fill="#f97316" fillOpacity={0.1} stroke="none" />
-            <Line type="monotone" dataKey="yhat" stroke="#f97316" strokeWidth={2} dot={false} name="Predicción" />
-          </ComposedChart>
-        </ResponsiveContainer>
-      )}
-      {Array.isArray(warehouseForecast) && warehouseForecast.length === 0 && !loadingWarehouse && (
-        <div className="empty-state">No hay datos suficientes para este almacén en el período seleccionado.</div>
-      )}
-    </div>
-  );
+  // const renderWarehouseTab = () => (
+  //   <div className="forecast-section">
+  //     <div className="section-header">
+  //       <h2>Pronóstico por Almacén</h2>
+  //       <div className="controls">
+  //         <label>
+  //           Almacén:
+  //           <select value={warehouseId} onChange={(e)=> setWarehouseId(e.target.value ? Number(e.target.value) : '')}>
+  //             <option value="">Selecciona almacén</option>
+  //             {warehouses.map(w => (
+  //               <option key={w.id} value={w.id}>{w.name}</option>
+  //             ))}
+  //           </select>
+  //         </label>
+  //         <button className="btn-primary" onClick={loadWarehouseForecast} disabled={!warehouseId || loadingWarehouse}>
+  //           {loadingWarehouse ? 'Cargando…' : 'Ver Forecast'}
+  //         </button>
+  //       </div>
+  //     </div>
+  //     {loadingWarehouse && (<div className="skeleton skeleton-rect" />)}
+  //     {Array.isArray(warehouseForecast) && warehouseForecast.length > 0 && (
+  //       <ResponsiveContainer width="100%" height={400}>
+  //         <ComposedChart data={warehouseForecast}>
+  //           <CartesianGrid strokeDasharray="3 3" />
+  //           <XAxis dataKey="ds" tickFormatter={formatDate} />
+  //           <YAxis tickFormatter={(v) => formatCurrency(v)} />
+  //           <Tooltip labelFormatter={(label) => new Date(label).toLocaleDateString('es-CL')} />
+  //           <Legend />
+  //           <Area type="monotone" dataKey="yhat_upper" fill="#f97316" fillOpacity={0.1} stroke="none" />
+  //           <Area type="monotone" dataKey="yhat_lower" fill="#f97316" fillOpacity={0.1} stroke="none" />
+  //           <Line type="monotone" dataKey="yhat" stroke="#f97316" strokeWidth={2} dot={false} name="Predicción" />
+  //         </ComposedChart>
+  //       </ResponsiveContainer>
+  //     )}
+  //     {Array.isArray(warehouseForecast) && warehouseForecast.length === 0 && !loadingWarehouse && (
+  //       <div className="empty-state">No hay datos suficientes para este almacén en el período seleccionado.</div>
+  //     )}
+  //   </div>
+  // );
 
   const renderComponentsTab = () => {
-    if (!components) {
-      return (
-        <div className="components-section">
-          <button onClick={loadComponents} className="btn-primary">
-            Cargar Componentes Prophet
-          </button>
-        </div>
-      );
-    }
-
     return (
       <div className="components-section">
-        <h2>Componentes del Modelo Prophet</h2>
-        
-        {/* Trend */}
-        <div className="component-chart">
-          <h3>Tendencia (Trend)</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={components.trend}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="ds" tickFormatter={formatDate} />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div>
+            <h2>Componentes del Modelo Prophet</h2>
+            <p className="section-description">
+              Descomposición del pronóstico en sus componentes fundamentales para análisis detallado
+            </p>
+          </div>
+          <button onClick={loadComponents} className="btn-primary">
+            Actualizar Componentes
+          </button>
+        </div>
+
+        {!components ? (
+          <div className="empty-state">Cargando componentes...</div>
+        ) : (
+          <>
+            {/* Trend */}
+            <div className="component-chart">
+              <h3>Tendencia (Trend)</h3>
+              <p className="chart-description">
+                Patrón de crecimiento o decrecimiento a largo plazo de las ventas
+              </p>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={components.trend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="ds" 
+                    tickFormatter={(date) => new Date(date).toLocaleDateString('es-CL', { month: 'short', day: 'numeric' })}
+                    tick={{ fontSize: 12 }}
+                  />
+              <YAxis 
+                tickFormatter={(value) => {
+                  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+                  if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
+                  return `$${value}`;
+                }}
+                tick={{ fontSize: 12 }}
+                label={{ value: 'Ventas Tendencia', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
+              />
+              <Tooltip 
+                labelFormatter={(date) => new Date(date).toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                formatter={(value: number) => [formatCurrency(value), 'Tendencia']}
+                contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px' }}
+              />
+              <Line type="monotone" dataKey="value" stroke="#8b5cf6" strokeWidth={2.5} dot={false} name="Tendencia" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -753,13 +941,36 @@ const ForecastingPage: React.FC = () => {
         {/* Yearly Seasonality */}
         <div className="component-chart">
           <h3>Estacionalidad Anual (Yearly)</h3>
-          <ResponsiveContainer width="100%" height={250}>
+          <p className="chart-description">
+            Variaciones que se repiten cada año (patrones estacionales anuales)
+          </p>
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={components.yearly}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="ds" tickFormatter={formatDate} />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="#06b6d4" strokeWidth={2} dot={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="ds" 
+                tickFormatter={(date) => new Date(date).toLocaleDateString('es-CL', { month: 'short', day: 'numeric' })}
+                tick={{ fontSize: 12 }}
+              />
+              <YAxis 
+                tickFormatter={(value) => {
+                  const absValue = Math.abs(value);
+                  if (absValue >= 1000000) return `${value < 0 ? '-' : ''}$${(absValue / 1000000).toFixed(1)}M`;
+                  if (absValue >= 1000) return `${value < 0 ? '-' : ''}$${(absValue / 1000).toFixed(0)}K`;
+                  return `${value < 0 ? '-' : ''}$${absValue}`;
+                }}
+                tick={{ fontSize: 12 }}
+                label={{ value: 'Efecto Anual', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
+              />
+              <Tooltip 
+                labelFormatter={(date) => new Date(date).toLocaleDateString('es-CL', { month: 'long', day: 'numeric' })}
+                formatter={(value: number) => {
+                  const effect = value >= 0 ? 'Incremento' : 'Decremento';
+                  return [formatCurrency(value), `${effect} Anual`];
+                }}
+                contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px' }}
+              />
+              <Line type="monotone" dataKey="value" stroke="#06b6d4" strokeWidth={2.5} dot={false} name="Estacionalidad Anual" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -767,54 +978,80 @@ const ForecastingPage: React.FC = () => {
         {/* Weekly Seasonality */}
         <div className="component-chart">
           <h3>Estacionalidad Semanal (Weekly)</h3>
-          <ResponsiveContainer width="100%" height={250}>
+          <p className="chart-description">
+            Variaciones que se repiten cada semana (patrones día a día)
+          </p>
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={components.weekly}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="ds" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} dot={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="ds"
+                tickFormatter={(date) => {
+                  const d = new Date(date);
+                  const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                  return `${days[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
+                }}
+                tick={{ fontSize: 12 }}
+              />
+              <YAxis 
+                tickFormatter={(value) => {
+                  const absValue = Math.abs(value);
+                  if (absValue >= 1000000) return `${value < 0 ? '-' : ''}$${(absValue / 1000000).toFixed(1)}M`;
+                  if (absValue >= 1000) return `${value < 0 ? '-' : ''}$${(absValue / 1000).toFixed(0)}K`;
+                  return `${value < 0 ? '-' : ''}$${absValue}`;
+                }}
+                tick={{ fontSize: 12 }}
+                label={{ value: 'Efecto Semanal', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
+              />
+              <Tooltip 
+                labelFormatter={(date) => {
+                  const d = new Date(date);
+                  return d.toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                }}
+                formatter={(value: number) => {
+                  const effect = value >= 0 ? 'Incremento' : 'Decremento';
+                  return [formatCurrency(value), `${effect} Semanal`];
+                }}
+                contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px' }}
+              />
+              <Line type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2.5} dot={false} name="Estacionalidad Semanal" />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="components-info">
-          <p>
-            <strong>Tendencia:</strong> Patrón de crecimiento o decrecimiento a largo plazo<br />
-            <strong>Estacionalidad Anual:</strong> Patrones que se repiten cada año<br />
-            <strong>Estacionalidad Semanal:</strong> Patrones que se repiten cada semana
-          </p>
-        </div>
+        {/* Info cards eliminadas según solicitud del usuario */}
+          </>
+        )}
       </div>
     );
   };
 
-  const renderAccuracyTab = () => (
-    <div className="accuracy-section">
-      <h2>Métricas de Precisión del Forecast</h2>
-      <div className="accuracy-info">
-        <div className="metric">
-          <h3>MAPE (Mean Absolute Percentage Error)</h3>
-          <div className="metric-value">5.2%</div>
-          <p>Error porcentual promedio de las predicciones</p>
-        </div>
-        <div className="metric">
-          <h3>MAE (Mean Absolute Error)</h3>
-          <div className="metric-value">$125,000</div>
-          <p>Error absoluto promedio en pesos</p>
-        </div>
-        <div className="metric">
-          <h3>Tasa de Confianza</h3>
-          <div className="metric-value">94.8%</div>
-          <p>% de predicciones dentro del intervalo de confianza</p>
-        </div>
-      </div>
-      <p className="info-text">
-        Las métricas se calculan comparando forecasts pasados con valores reales.<br />
-        Actualización diaria a las 7:00 AM.
-      </p>
-    </div>
-  );
+  // const renderAccuracyTab = () => (
+  //   <div className="accuracy-section">
+  //     <h2>Métricas de Precisión del Forecast</h2>
+  //     <div className="accuracy-info">
+  //       <div className="metric">
+  //         <h3>MAPE (Mean Absolute Percentage Error)</h3>
+  //         <div className="metric-value">5.2%</div>
+  //         <p>Error porcentual promedio de las predicciones</p>
+  //       </div>
+  //       <div className="metric">
+  //         <h3>MAE (Mean Absolute Error)</h3>
+  //         <div className="metric-value">$125,000</div>
+  //         <p>Error absoluto promedio en pesos</p>
+  //       </div>
+  //       <div className="metric">
+  //         <h3>Tasa de Confianza</h3>
+  //         <div className="metric-value">94.8%</div>
+  //         <p>% de predicciones dentro del intervalo de confianza</p>
+  //       </div>
+  //     </div>
+  //     <p className="info-text">
+  //       Las métricas se calculan comparando forecasts pasados con valores reales.<br />
+  //       Actualización diaria a las 7:00 AM.
+  //     </p>
+  //   </div>
+  // );
 
   // ================== Main Render ==================
 
@@ -825,7 +1062,7 @@ const ForecastingPage: React.FC = () => {
   return (
     <div className="forecasting-page">
       <div className="page-header">
-        <h1>Dashboard de Forecasting (Prophet)</h1>
+        <h1>Análisis y Predicciones</h1>
         <p>Predicciones de ventas y recomendaciones inteligentes de reinventario</p>
       </div>
 
@@ -845,24 +1082,6 @@ const ForecastingPage: React.FC = () => {
           Top Productos
         </button>
         <button
-          className={`tab ${activeTab === 'sales30' ? 'active' : ''}`}
-          onClick={() => setActiveTab('sales30')}
-        >
-          Ventas 30 días
-        </button>
-        <button
-          className={`tab ${activeTab === 'category' ? 'active' : ''}`}
-          onClick={() => setActiveTab('category')}
-        >
-          Por Categoría
-        </button>
-        <button
-          className={`tab ${activeTab === 'warehouse' ? 'active' : ''}`}
-          onClick={() => setActiveTab('warehouse')}
-        >
-          Por Almacén
-        </button>
-        <button
           className={`tab ${activeTab === 'restock' ? 'active' : ''}`}
           onClick={() => setActiveTab('restock')}
         >
@@ -874,23 +1093,13 @@ const ForecastingPage: React.FC = () => {
         >
           Componentes Prophet
         </button>
-        <button
-          className={`tab ${activeTab === 'accuracy' ? 'active' : ''}`}
-          onClick={() => setActiveTab('accuracy')}
-        >
-          Precisión
-        </button>
       </div>
 
       <div className="tab-content">
         {activeTab === 'forecast' && renderForecastTab()}
         {activeTab === 'top' && renderTopProductsTab()}
-  {activeTab === 'sales30' && renderSales30Tab()}
-  {activeTab === 'category' && renderCategoryTab()}
-  {activeTab === 'warehouse' && renderWarehouseTab()}
         {activeTab === 'restock' && renderRestockTab()}
         {activeTab === 'components' && renderComponentsTab()}
-        {activeTab === 'accuracy' && renderAccuracyTab()}
       </div>
 
       {/* Botón flotante para abrir chatbot */}
