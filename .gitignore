@@ -100,9 +100,9 @@ celery.log
 *.dump
 *.backup
 
-# Excluir scripts SQL de datos simulados
-backend/datos_*.sql
-backend/*_datos.sql
+# Excluir scripts SQL de datos simulados (COMENTADO - mantener para desarrollo)
+# backend/datos_*.sql
+# backend/*_datos.sql
 
 # Database data directories
 postgres_data/
@@ -183,14 +183,31 @@ vite.config.ts.timestamp-*
 # DOCKER
 # ============================================================================
 
-# Docker files
-.dockerignore
+# Docker files personalizados (mantener Dockerfile base)
 docker-compose.override.yml
 docker-compose.local.yml
 .docker/
 
-# Docker volumes
+# Docker volumes y datos persistentes
 volumes/
+docker-volumes/
+
+# Docker logs
+docker-compose.log
+
+# ============================================================================
+# REDIS & CACHE
+# ============================================================================
+
+# Redis dump files
+dump.rdb
+appendonly.aof
+redis_data/
+
+# Cache directories
+.cache/
+cache/
+*_cache/
 
 # ============================================================================
 # IDE / EDITORS
@@ -294,11 +311,26 @@ temp/
 login.json
 login_resp.json
 token.json
+temp_*.json
 *.response.json
+*_test.json
 
 # Archivos de configuración temporal
 rep_drill.yml
 nginx_ssl.conf
+
+# Archivos generados por scripts de análisis
+verify_*.py
+parse_*.py
+generate_*.py
+recompute_*.py
+check_*.py
+calculate_*.py
+
+# Excepto los scripts importantes del proyecto
+!backend/generador_datos_simulados.py
+!backend/populate_full_system.py
+!backend/health_check.py
 
 # Service-specific environment files
 backend/servicio_auth/.env
@@ -332,13 +364,13 @@ backend/servicio_chatbot/staticfiles/
 .ipynb_checkpoints
 *.ipynb
 
-# Scripts de prueba y análisis
-backend/test_*.py
-backend/demo_*.py
-backend/benchmark_*.py
-backend/*_simulados.py
-backend/clear_cache.py
-backend/populate_*.py
+# Scripts de prueba y análisis (COMENTADO - mantener en repo para desarrollo)
+# backend/test_*.py
+# backend/demo_*.py
+# backend/benchmark_*.py
+# backend/*_simulados.py
+# backend/clear_cache.py
+# backend/populate_*.py
 
 # IPython
 profile_default/
@@ -401,6 +433,10 @@ cython_debug/
 .env.staging
 *.env
 
+# IMPORTANTE: Mantener .env.example en el repositorio
+!.env.example
+!**/.env.example
+
 # Secret keys
 secret.txt
 secrets/
@@ -410,18 +446,35 @@ secrets/
 *.cer
 *.p12
 *.pfx
+*_key.txt
+*.keystore
+
+# JWT signing keys
+jwt_signing_key*
+JWT_SIGNING_KEY*
+
+# Database passwords
+db_password.txt
+database_credentials*
 
 # AWS
 .aws/
+aws-credentials*
 
 # Google Cloud
 gcloud/
 *.json
+# Excepto package.json y tsconfig.json
+!package.json
+!**/package.json
+!tsconfig*.json
+!**/*.config.json
 
 # SSH keys
 id_rsa
 id_rsa.pub
 *.ppk
+ssh_keys/
 
 # ============================================================================
 # DOCUMENTATION (OPCIONAL)
@@ -457,6 +510,8 @@ dump.rdb
 
 # Performance data
 .profiling/
+*.prof
+*.pstats
 
 # ============================================================================
 # MONITORING & OBSERVABILITY
@@ -470,6 +525,17 @@ grafana_data/
 
 # Logs de monitoreo
 monitoring/logs/
+monitoring/data/
+
+# Alertmanager data
+alertmanager_data/
+
+# Jaeger/Zipkin tracing
+jaeger_data/
+zipkin_data/
+
+# APM data
+apm_data/
 
 # ============================================================================
 # DEVELOPMENT HELPERS
@@ -478,12 +544,23 @@ monitoring/logs/
 # Scripts de PowerShell temporales
 *.ps1.backup
 cargar_datos_*.ps1
+*_backup.ps1
 
-# Archivos de análisis y separación
-separar_*.py
-recompute_*.py
-check_*.py
-calculate_*.py
+# Archivos de análisis y separación (comentado para mantener en repo)
+# separar_*.py
+# recompute_*.py
+# check_*.py
+# calculate_*.py
+
+# Archivos de respaldo de Python
+*.py.bak
+*.py.backup
+*.py.old
+
+# Output files de tests
+test_output/
+test_results/
+*.test.out
 
 # ============================================================================
 # EVIDENCIAS Y PRESENTACIONES (Mantener en repo)
@@ -492,5 +569,54 @@ calculate_*.py
 # La carpeta evidencias/ está incluida pero ignorar temporales
 evidencias/**/*.tmp
 evidencias/**/*.cache
+evidencias/**/.DS_Store
+
+# ============================================================================
+# CI/CD
+# ============================================================================
+
+# GitHub Actions artifacts
+.github/workflows/*.log
+
+# GitLab CI
+.gitlab-ci-local/
+
+# Jenkins
+.jenkins/
+
+# ============================================================================
+# BACKUPS
+# ============================================================================
+
+# Database backups
+backups/
+*.backup
+*.dump
+*.sql.gz
+*.sql.bak
+
+# Configuration backups
+config.backup
+*.conf.backup
+
+# ============================================================================
+# MISCELLANEOUS ADDITIONS
+# ============================================================================
+
+# macOS metadata
+.localized
+
+# Python virtual environment markers
+pyvenv.cfg
+
+# Celery worker files
+celerybeat-schedule.db
+celerybeat-schedule.bak
+
+# Coverage badges
+coverage-badge.svg
+
+# Storybook build
+storybook-static/
 
 # End of .gitignore
