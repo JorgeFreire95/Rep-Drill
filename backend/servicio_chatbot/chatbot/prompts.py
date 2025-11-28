@@ -135,9 +135,13 @@ def _format_context_for_prompt(context: Dict) -> str:
     if 'trend' in components and components['trend']:
         trend_values = components['trend']
         if len(trend_values) >= 2:
-            trend_direction = "alcista ↗" if trend_values[-1] > trend_values[0] else "bajista ↘"
-            trend_change = abs(trend_values[-1] - trend_values[0])
-            trend_change_pct = (trend_change / abs(trend_values[0])) * 100 if trend_values[0] != 0 else 0
+            # Extraer valores numéricos de los diccionarios
+            first_val = trend_values[0].get('value', 0) if isinstance(trend_values[0], dict) else trend_values[0]
+            last_val = trend_values[-1].get('value', 0) if isinstance(trend_values[-1], dict) else trend_values[-1]
+            
+            trend_direction = "alcista ↗" if last_val > first_val else "bajista ↘"
+            trend_change = abs(last_val - first_val)
+            trend_change_pct = (trend_change / abs(first_val)) * 100 if first_val != 0 else 0
             lines.append(
                 f"\n**Tendencia General:** {trend_direction.capitalize()} "
                 f"({trend_change_pct:+.1f}% en el periodo analizado)"

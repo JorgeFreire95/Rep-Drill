@@ -1523,6 +1523,10 @@ Toda la documentación técnica se encuentra en la carpeta [`docs/`](./docs/):
 - **[`CHATBOT_QUICKSTART.md`](./docs/CHATBOT_QUICKSTART.md)** - Inicio rápido del chatbot con Ollama
 - **[`DEPLOYMENT_CHATBOT.md`](./docs/DEPLOYMENT_CHATBOT.md)** - Despliegue del chatbot en producción
 
+### Guías de Integración y Arquitectura Avanzada
+- **[`VENTAS_PERSONAS_INTEGRATION.md`](./docs/VENTAS_PERSONAS_INTEGRATION.md)** - Integración Ventas ↔ Personas con caché y sincronización Celery
+- **[`ADVANCED_ARCHITECTURE.md`](./docs/ADVANCED_ARCHITECTURE.md)** - Reservas de stock, Saga pattern, invalidación de cache, métricas granulares y multi-DB
+
 ### Guías de Datos y Testing
 - **[`README_GENERADOR_DATOS.md`](./docs/README_GENERADOR_DATOS.md)** - Generador de datos de prueba
 - **[`RESUMEN_GENERADOR.md`](./docs/RESUMEN_GENERADOR.md)** - Resumen del sistema de generación
@@ -1546,12 +1550,19 @@ Toda la documentación técnica se encuentra en la carpeta [`docs/`](./docs/):
 - Docker Compose orquestación
 - Frontend React moderno
 
-### 🚧 En Progreso (10%)
+### 🚧 En Progreso (5%)
 - Tests E2E con Playwright
 - Optimización de queries (select_related)
-- Separación de bases de datos por servicio
 - Kubernetes manifests
 - CI/CD pipeline
+
+### ✅ Nuevas Características Avanzadas Implementadas
+- **Reservas de Stock**: Sistema de reserva previa con TTL y estados (pending/confirmed/released)
+- **Saga Pattern**: Confirm/Cancel transaccional con compensación automática
+- **Cache Invalidation**: Invalidación automática de pronósticos en cambios de stock
+- **Métricas Granulares**: MAPE/MAE por producto y categoría para precisión de forecasting
+- **Multi-DB Scaffold**: Enrutador de bases de datos preparado para separación física futura
+- **Sincronización Celery**: Tareas asíncronas para caché de clientes y métricas de precisión
 
 ### 🎯 Roadmap
 1. **Corto Plazo** (1-2 semanas)

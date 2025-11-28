@@ -3,9 +3,9 @@ services:
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_DB: ${DB_NAME:-rep_drill_db}
-      POSTGRES_USER: ${DB_USER:-usuario}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: rep_drill_db
+      POSTGRES_USER: usuario
+      POSTGRES_PASSWORD: postgres_dev_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -38,9 +38,9 @@ services:
       db:
         condition: service_healthy
     environment:
-      - DATABASE_DB=${DB_NAME:-rep_drill_db}
-      - DATABASE_USER=${DB_USER:-usuario}
-      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - DATABASE_DB=rep_drill_db
+      - DATABASE_USER=usuario
+      - DATABASE_PASSWORD=postgres_dev_password
       - DATABASE_SERVER=db
       - DATABASE_PORT=5432
       - DEBUG=${DEBUG:-False}
@@ -59,7 +59,7 @@ services:
   personas:
     build:
       context: ./backend/servicio_personas
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_personas.wsgi:application
     volumes:
       - ./backend/servicio_personas:/app
@@ -69,9 +69,9 @@ services:
       db:
         condition: service_healthy
     environment:
-      - DATABASE_DB=${DB_NAME:-rep_drill_db}
-      - DATABASE_USER=${DB_USER:-usuario}
-      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - DATABASE_DB=rep_drill_db
+      - DATABASE_USER=usuario
+      - DATABASE_PASSWORD=postgres_dev_password
       - DATABASE_SERVER=db
       - DATABASE_PORT=5432
       - DEBUG=${DEBUG:-False}
@@ -85,7 +85,7 @@ services:
   inventario:
     build:
       context: ./backend/servicio_inventario
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_inventario.wsgi:application
     volumes:
       - ./backend/servicio_inventario:/app
@@ -95,9 +95,9 @@ services:
       db:
         condition: service_healthy
     environment:
-      - DATABASE_DB=${DB_NAME:-rep_drill_db}
-      - DATABASE_USER=${DB_USER:-usuario}
-      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - DATABASE_DB=rep_drill_db
+      - DATABASE_USER=usuario
+      - DATABASE_PASSWORD=postgres_dev_password
       - DATABASE_SERVER=db
       - DATABASE_PORT=5432
       - DEBUG=${DEBUG:-False}
@@ -111,7 +111,7 @@ services:
   ventas:
     build:
       context: ./backend/servicio_ventas
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 servicio_ventas.wsgi:application
     volumes:
       - ./backend/servicio_ventas:/app
@@ -120,10 +120,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      - DATABASE_DB=${DB_NAME:-rep_drill_db}
-      - DATABASE_USER=${DB_USER:-usuario}
-      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - DATABASE_DB=rep_drill_db
+      - DATABASE_USER=usuario
+      - DATABASE_PASSWORD=postgres_dev_password
       - DATABASE_SERVER=db
       - DATABASE_PORT=5432
       - DEBUG=${DEBUG:-False}
@@ -132,8 +134,68 @@ services:
       - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
       - INVENTARIO_SERVICE_URL=http://inventario:8000
       - PERSONAS_SERVICE_URL=http://personas:8000
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
     networks:
       - micro_net
+
+  # Celery Worker para Ventas
+  ventas_worker:
+    build:
+      context: ./backend/servicio_ventas
+      dockerfile: Dockerfile
+    command: celery -A servicio_ventas worker --loglevel=info --concurrency=2
+    container_name: rep_drill_ventas_worker
+    environment:
+      - DATABASE_DB=rep_drill_db
+      - DATABASE_USER=usuario
+      - DATABASE_PASSWORD=postgres_dev_password
+      - DATABASE_SERVER=db
+      - DATABASE_PORT=5432
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${DJANGO_SECRET_KEY}
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - PERSONAS_SERVICE_URL=http://personas:8000
+      - INVENTARIO_SERVICE_URL=http://inventario:8000
+    depends_on:
+      - redis
+      - db
+      - ventas
+    volumes:
+      - ./backend/servicio_ventas:/app
+    networks:
+      - micro_net
+    restart: unless-stopped
+
+  # Celery Beat (Scheduler) para Ventas
+  ventas_beat:
+    build:
+      context: ./backend/servicio_ventas
+      dockerfile: Dockerfile
+    command: celery -A servicio_ventas beat --loglevel=info
+    container_name: rep_drill_ventas_beat
+    environment:
+      - DATABASE_DB=rep_drill_db
+      - DATABASE_USER=usuario
+      - DATABASE_PASSWORD=postgres_dev_password
+      - DATABASE_SERVER=db
+      - DATABASE_PORT=5432
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${DJANGO_SECRET_KEY}
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
+    depends_on:
+      - redis
+      - db
+      - ventas
+    volumes:
+      - ./backend/servicio_ventas:/app
+    networks:
+      - micro_net
+    restart: unless-stopped
 
   # Redis (Message Broker para Celery)
   redis:
@@ -168,9 +230,9 @@ services:
       - SECRET_KEY=${DJANGO_SECRET_KEY}
       # Use the same signing key as the auth service so JWTs validate cross-service
       - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
-      - DB_NAME=${DB_NAME:-rep_drill_db}
-      - DB_USER=${DB_USER:-usuario}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=rep_drill_db
+      - DB_USER=usuario
+      - DB_PASSWORD=postgres_dev_password
       - DB_HOST=db
       - DB_PORT=5432
       - DEBUG=${DEBUG:-False}
@@ -208,9 +270,9 @@ services:
     environment:
       - SECRET_KEY=${DJANGO_SECRET_KEY}
       - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
-      - DB_NAME=${DB_NAME:-rep_drill_db}
-      - DB_USER=${DB_USER:-usuario}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=rep_drill_db
+      - DB_USER=usuario
+      - DB_PASSWORD=postgres_dev_password
       - DB_HOST=db
       - DB_PORT=5432
       - DEBUG=${DEBUG:-False}
@@ -235,9 +297,9 @@ services:
     environment:
       - SECRET_KEY=${DJANGO_SECRET_KEY}
       - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
-      - DB_NAME=${DB_NAME:-rep_drill_db}
-      - DB_USER=${DB_USER:-usuario}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=rep_drill_db
+      - DB_USER=usuario
+      - DB_PASSWORD=postgres_dev_password
       - DB_HOST=db
       - DB_PORT=5432
       - DEBUG=${DEBUG:-False}
@@ -299,9 +361,9 @@ services:
       analytics:
         condition: service_started
     environment:
-      - DATABASE_DB=${DB_NAME:-rep_drill_db}
-      - DATABASE_USER=${DB_USER:-usuario}
-      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - DATABASE_DB=rep_drill_db
+      - DATABASE_USER=usuario
+      - DATABASE_PASSWORD=postgres_dev_password
       - DATABASE_SERVER=db
       - DATABASE_PORT=5432
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}

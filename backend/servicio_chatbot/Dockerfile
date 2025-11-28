@@ -23,5 +23,5 @@ USER appuser
 
 EXPOSE 8000
 
-# Comando por defecto: gunicorn con 2 workers
-CMD ["gunicorn", "servicio_chatbot.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-"]
+# Comando por defecto: gunicorn con 2 workers y timeout extendido para Ollama
+CMD ["gunicorn", "servicio_chatbot.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "600", "--graceful-timeout", "600", "--access-logfile", "-", "--error-logfile", "-"]
