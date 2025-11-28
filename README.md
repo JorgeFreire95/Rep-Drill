@@ -1,7 +1,7 @@
 # Project
 
 <p align="center">
-  <img src="https://github.com/JorgeFreire95/rep-drill/blob/main/evidencias/logos/rep-drill_light_logo.svg" width="50%" height="50%" />
+  <img src="https://github.com/JorgeFreire95/rep-drill/blob/main/fases/fase_2/evidencias_proyecto/evidencias_documentacion/logos/rep-drill_light_logo.svg" width="50%" height="50%" />
 </p>
 
 ## Repository
