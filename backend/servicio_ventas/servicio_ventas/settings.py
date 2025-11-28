@@ -127,6 +127,28 @@ else:
         'PORT': os.getenv('DATABASE_PORT'),
     }
 
+# -----------------------------------------------------------
+# Secondary (analytics) database scaffold
+# If ANALYTICS_DATABASE_DB is not provided, mirror default for now.
+# This allows introducing a second physical database later without code churn.
+# -----------------------------------------------------------
+SECONDARY_DB_NAME = os.getenv('ANALYTICS_DATABASE_DB')
+if SECONDARY_DB_NAME:
+    DATABASES['analytics'] = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': SECONDARY_DB_NAME,
+        'USER': os.getenv('ANALYTICS_DATABASE_USER', os.getenv('DATABASE_USER')),
+        'PASSWORD': os.getenv('ANALYTICS_DATABASE_PASSWORD', os.getenv('DATABASE_PASSWORD')),
+        'HOST': os.getenv('ANALYTICS_DATABASE_SERVER', os.getenv('DATABASE_SERVER')),
+        'PORT': os.getenv('ANALYTICS_DATABASE_PORT', os.getenv('DATABASE_PORT')),
+    }
+else:
+    # Mirror default connection (logical separation only at this stage)
+    DATABASES['analytics'] = DATABASES['default'].copy()
+
+# Register DB router (scaffold). Future analytics/reporting app labels will be routed.
+DATABASE_ROUTERS = ['servicio_ventas.dbrouters.ServiceRouter']
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -284,4 +306,18 @@ LOGGING = {
         },
     },
 }
+
+# ============================================
+# Configuración de Celery
+# ============================================
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'America/Santiago'
+CELERY_ENABLE_UTC = False
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutos
+
 

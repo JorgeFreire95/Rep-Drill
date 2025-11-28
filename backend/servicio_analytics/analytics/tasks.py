@@ -34,21 +34,25 @@ logger = logging.getLogger(__name__)
     retry_backoff_max=600,  # 10 minutos máximo
     retry_jitter=True
 )
-def calculate_daily_metrics(self):
+def calculate_daily_metrics(self, target_date=None):
     """
     Tarea programada para calcular métricas diarias.
     Se ejecuta cada hora para mantener métricas actualizadas.
+    
+    Args:
+        target_date: Fecha objetivo (str YYYY-MM-DD o date). Si None, usa ayer.
     
     Integración:
     - Consume eventos de órdenes desde Redis Streams
     - Valida calidad de datos antes de procesar
     - Calcula métricas de ventas completas del día anterior
     """
+    import uuid
     from .models import TaskRun
     
     # Registrar inicio de tarea
     task_run = TaskRun.objects.create(
-        run_id=self.request.id,
+         run_id=self.request.id if self.request.id else str(uuid.uuid4()),
         task_name='analytics.tasks.calculate_daily_metrics'
     )
     
@@ -59,7 +63,14 @@ def calculate_daily_metrics(self):
         validator = DataQualityValidator()
 
         # Calcular métricas de ayer (día completo) usando APIs de servicios
-        yesterday = date.today() - timedelta(days=1)
+        if target_date:
+            if isinstance(target_date, str):
+                from datetime import datetime
+                yesterday = datetime.strptime(target_date, '%Y-%m-%d').date()
+            else:
+                yesterday = target_date
+        else:
+            yesterday = date.today() - timedelta(days=1)
         metrics = calculator.calculate_daily_sales_metrics(yesterday)
         
         if metrics:
@@ -778,14 +789,115 @@ def cleanup_old_data(self, days_to_keep: int = 365):
         stats['duration_seconds'] = round(duration, 2)
         stats['status'] = 'success'
         return stats
+    
+    except Exception as e:
+        logger.error(f"Error en limpieza de datos: {str(e)}", exc_info=True)
+        return {
+            'status': 'error',
+            'error': str(e)
+        }
+
+
+@shared_task(name='analytics.tasks.compute_granular_forecast_accuracy')
+def compute_granular_forecast_accuracy(days_window: int = 30):
+    """Calcula MAPE/MAE por producto y categoría usando métricas reales vs forecasts guardados.
+    Usa ForecastAccuracyHistory registros con actual_value no nulo en ventana.
+    """
+    import time
+    start_time = time.time()
+    
+    try:
+        from .models import ForecastAccuracyHistory, ForecastProductAccuracy, ForecastCategoryAccuracy
+        from django.db.models import Avg, Count
+        window_end = date.today()
+        window_start = window_end - timedelta(days=days_window)
+        qs = ForecastAccuracyHistory.objects.filter(
+            forecast_type='product_demand',
+            actual_value__isnull=False,
+            predicted_date__gte=window_start,
+            predicted_date__lte=window_end,
+        )
+        products = qs.values('product_id').annotate(
+            mape=Avg('percentage_error'),
+            mae=Avg('absolute_error'),
+            days=Count('id')
+        )
+        created_prod = 0
+        for p in products:
+            if p['product_id'] is None:
+                continue
+            ForecastProductAccuracy.objects.update_or_create(
+                product_id=p['product_id'],
+                window_start=window_start,
+                window_end=window_end,
+                defaults={
+                    'mape': round(p['mape'] or 0, 2),
+                    'mae': round(p['mae'] or 0, 2),
+                    'days_evaluated': p['days'],
+                }
+            )
+            created_prod += 1
+        # Categorías: necesitamos mapping product->category desde inventario (best-effort)
+        import requests
+        category_map = {}
+        for p in products:
+            pid = p['product_id']
+            if pid is None:
+                continue
+            if pid not in category_map:
+                try:
+                    resp = requests.get(f"http://inventario:8000/api/products/{pid}/", timeout=3)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        category_map[pid] = data.get('category') or data.get('category_id')
+                    else:
+                        category_map[pid] = None
+                except Exception:
+                    category_map[pid] = None
+        # Aggregate by category
+        cat_stats = {}
+        for p in products:
+            pid = p['product_id']
+            cat_id = category_map.get(pid)
+            if cat_id is None:
+                continue
+            if cat_id not in cat_stats:
+                cat_stats[cat_id] = {'mape_sum': 0, 'mae_sum': 0, 'count': 0}
+            cat_stats[cat_id]['mape_sum'] += p['mape'] or 0
+            cat_stats[cat_id]['mae_sum'] += p['mae'] or 0
+            cat_stats[cat_id]['count'] += 1
+        created_cat = 0
+        for cat_id, agg in cat_stats.items():
+            ForecastCategoryAccuracy.objects.update_or_create(
+                category_id=cat_id,
+                window_start=window_start,
+                window_end=window_end,
+                defaults={
+                    'mape': round((agg['mape_sum'] / agg['count']) if agg['count'] else 0, 2),
+                    'mae': round((agg['mae_sum'] / agg['count']) if agg['count'] else 0, 2),
+                    'products_count': agg['count'],
+                }
+            )
+            created_cat += 1
+        
+        return {
+            'status': 'success',
+            'products_processed': created_prod,
+            'categories_processed': created_cat,
+            'window_start': window_start.isoformat(),
+            'window_end': window_end.isoformat(),
+        }
         
     except Exception as e:
         duration = time.time() - start_time
         logger.error(
-            f"Error en limpieza de datos (duración: {duration:.2f}s): {str(e)}",
+            f"Error calculando accuracy granular (duración: {duration:.2f}s): {str(e)}",
             exc_info=True
         )
-        raise self.retry(exc=e, countdown=60)
+        return {
+            'status': 'error',
+            'error': str(e)
+        }
 
 
 @shared_task(

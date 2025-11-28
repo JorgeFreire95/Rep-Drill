@@ -5,9 +5,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import Sum, Count, Q, F, DecimalField, ExpressionWrapper
 from django.db import transaction
 from django.utils import timezone
+from django.conf import settings
 from datetime import timedelta
 from decimal import Decimal
 import logging
+import requests
 from .models import Order, OrderDetails, Shipment, Payment
 from .serializers import (
     OrderSerializer,
@@ -202,14 +204,58 @@ class OrderViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Crear la orden
+            # ✅ NUEVO: Validar que el cliente existe en servicio Personas
+            try:
+                customer_response = requests.get(
+                    f"{settings.PERSONAS_SERVICE_URL}/api/personas/{customer_id}/",
+                    timeout=5
+                )
+                
+                if customer_response.status_code == 404:
+                    return Response(
+                        {'error': f'Cliente con ID {customer_id} no encontrado'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+                elif customer_response.status_code != 200:
+                    logger.warning(
+                        f"Error consultando servicio Personas: {customer_response.status_code}"
+                    )
+                    # Continuar sin validación si el servicio no responde
+                    customer_data = None
+                else:
+                    customer_data = customer_response.json()
+                    
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error de conexión con servicio Personas: {str(e)}")
+                # Continuar sin validación si hay error de conexión
+                customer_data = None
+            
+            # Crear la orden base (sin detalles aún)
             order = Order.objects.create(
                 customer_id=customer_id,
                 status='PENDING',
                 total=Decimal('0.00')
             )
             
-            # Crear detalles de la orden
+            # ✅ NUEVO: Si se obtuvo data del cliente, actualizar cache
+            if customer_data:
+                order.customer_name = f"{customer_data.get('nombre', '')} {customer_data.get('apellido', '')}".strip()
+                order.customer_email = customer_data.get('email', '')
+                order.customer_phone = customer_data.get('telefono', '')
+                order.save(update_fields=['customer_name', 'customer_email', 'customer_phone'])
+            
+            # Crear reservas de stock primero (microservicio inventario)
+            from .services import InventoryService
+            reservation_result = InventoryService.create_reservations_for_order(order.id, details)
+            if not reservation_result.get('success'):
+                order.delete()
+                return Response({
+                    'error': 'No se pudo reservar stock',
+                    'detail': reservation_result.get('reservation_error'),
+                    'failed_detail': reservation_result.get('failed_detail')
+                }, status=status.HTTP_409_CONFLICT)
+
+            # Crear detalles de la orden (después de reservas exitosas)
             total = Decimal('0.00')
             items_count = len(details)
             
@@ -259,7 +305,15 @@ class OrderViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 logger.warning(f'Could not publish event: {str(e)}')
             
-            logger.info(f'Order {order.id} created')
+            # Anotar ids de reservas en notes para trazabilidad inicial
+            try:
+                reservation_ids = [r['reservation']['id'] for r in reservation_result.get('reservations', [])]
+                order.notes = f"reservations={reservation_ids}"
+                order.save(update_fields=['notes'])
+            except Exception:
+                pass
+
+            logger.info(f'Order {order.id} created with {len(reservation_result.get("reservations", []))} reservations')
             
             return Response({
                 'order_id': order.id,
@@ -267,7 +321,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                 'customer_id': customer_id,
                 'total': float(total),
                 'items_count': items_count,
-                'created_at': order.order_date.isoformat() if order.order_date else timezone.now().isoformat()
+                'created_at': order.order_date.isoformat() if order.order_date else timezone.now().isoformat(),
+                'reservations': [r['reservation'] for r in reservation_result.get('reservations', [])]
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
@@ -699,4 +754,150 @@ def validate_stock(request):
             {'error': 'Internal server error', 'detail': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+    @action(detail=False, methods=['post'])
+    def sync_customer_cache(self, request):
+        """
+        POST /api/orders/sync_customer_cache/
+        
+        Sincroniza el cache de clientes en todas las órdenes activas.
+        
+        Response:
+        {
+            "message": "Cache sincronizado",
+            "success": 15,
+            "errors": 2,
+            "total": 17
+        }
+        """
+        try:
+            result = Order.sync_all_customer_caches()
+            
+            return Response({
+                'message': 'Sincronización completada',
+                'success': result['success'],
+                'errors': result['errors'],
+                'total': result['total']
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f'Error sincronizando cache: {str(e)}')
+            return Response(
+                {'error': 'Internal server error', 'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'])
+    def sync_order_customer_cache(self, request, pk=None):
+        """
+        POST /api/orders/{id}/sync_order_customer_cache/
+        
+        Sincroniza el cache del cliente para una orden específica.
+        
+        Response:
+        {
+            "message": "Cache sincronizado",
+            "order_id": 42,
+            "customer_name": "Juan Pérez",
+            "customer_email": "juan@example.com"
+        }
+        """
+        try:
+            order = self.get_object()
+            
+            if order.sync_customer_cache():
+                return Response({
+                    'message': 'Cache sincronizado exitosamente',
+                    'order_id': order.id,
+                    'customer_name': order.customer_name,
+                    'customer_email': order.customer_email,
+                    'customer_phone': order.customer_phone
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'No se pudo sincronizar el cache',
+                    'detail': 'Error al obtener datos del servicio Personas'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                
+        except Exception as e:
+            logger.error(f'Error sincronizando cache de orden {pk}: {str(e)}')
+            return Response(
+                {'error': 'Internal server error', 'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'])
+    @transaction.atomic
+    def confirm(self, request, pk=None):
+        """Confirma la orden: commit de reservas y cambio de estado a CONFIRMED."""
+        from .services import InventoryService
+        order = self.get_object()
+        if order.status != 'PENDING':
+            return Response({'error': 'Solo órdenes PENDING pueden confirmarse', 'status': order.status}, status=400)
+        # Obtener reservas
+        res_list = InventoryService.list_reservations_for_order(order.id)
+        if not res_list.get('success'):
+            return Response({'error': 'No se pudo listar reservas', 'detail': res_list}, status=502)
+        reservations = res_list['data'].get('results', [])
+        commit_results = []
+        for r in reservations:
+            if r['status'] == 'pending':
+                cr = InventoryService.commit_reservation(r['id'])
+                commit_results.append({'id': r['id'], 'commit': cr})
+                if not cr.get('success'):
+                    # compensación: uncommit lo ya confirmado (si alguno) y abortar
+                    for done in commit_results:
+                        if done['commit'].get('success'):
+                            InventoryService.uncommit_reservation(done['id'])
+                    return Response({'error': 'Fallo commit de reserva', 'failed': r['id'], 'details': cr}, status=409)
+        order.status = 'CONFIRMED'
+        order.confirmed_at = timezone.now()
+        order.save(update_fields=['status', 'confirmed_at', 'updated_at'])
+        try:
+            from servicio_analytics.tasks import publish_event
+            publish_event.delay(event_type='order.confirmed', data={'order_id': order.id, 'total': str(order.total)})
+        except Exception:
+            pass
+        # Invalidate forecast cache for affected products
+        try:
+            product_ids = list(order.details.values_list('product_id', flat=True))
+            analytics_url = getattr(settings, 'ANALYTICS_SERVICE_URL', 'http://analytics:8000')
+            requests.post(f"{analytics_url}/api/prophet/invalidate/", json={'product_ids': product_ids})
+        except Exception as e:
+            logger.warning(f"Could not invalidate forecast cache: {e}")
+        return Response({'order_id': order.id, 'status': order.status, 'commit_results': commit_results})
+
+    @action(detail=True, methods=['post'])
+    @transaction.atomic
+    def cancel(self, request, pk=None):
+        """Cancela la orden: libera o compensa reservas y marca CANCELLED."""
+        from .services import InventoryService
+        order = self.get_object()
+        if order.status == 'CANCELLED':
+            return Response({'error': 'Orden ya cancelada'}, status=400)
+        res_list = InventoryService.list_reservations_for_order(order.id)
+        if not res_list.get('success'):
+            return Response({'error': 'No se pudo listar reservas', 'detail': res_list}, status=502)
+        reservations = res_list['data'].get('results', [])
+        actions = []
+        for r in reservations:
+            if order.status == 'PENDING' and r['status'] == 'pending':
+                rel = InventoryService.release_reservation(r['id'], reason='order cancelled')
+                actions.append({'id': r['id'], 'released': rel})
+            elif order.status == 'CONFIRMED' and r['status'] == 'confirmed':
+                # compensación completa
+                un = InventoryService.uncommit_reservation(r['id'])
+                actions.append({'id': r['id'], 'uncommitted': un.get('success')})
+            elif r['status'] == 'pending':
+                rel = InventoryService.release_reservation(r['id'], reason='order cancelled (other status)')
+                actions.append({'id': r['id'], 'released': rel})
+        order.status = 'CANCELLED'
+        order.save(update_fields=['status', 'updated_at'])
+        try:
+            from servicio_analytics.tasks import publish_event
+            publish_event.delay(event_type='order.cancelled', data={'order_id': order.id})
+        except Exception:
+            pass
+        return Response({'order_id': order.id, 'status': order.status, 'reservation_actions': actions})
+
 

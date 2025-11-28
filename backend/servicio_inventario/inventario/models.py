@@ -318,3 +318,97 @@ class AuditLog(models.Model):
         if self.changes is not None:
             self.changes = _json_safe(self.changes)
         super().save(*args, **kwargs)
+
+
+class StockReservation(models.Model):
+    """Reserva temporal de stock antes de confirmar una orden.
+    Estados:
+    - pending: creada, aún no confirmada
+    - confirmed: confirmada por saga/orden; se procederá a descontar stock definitivo
+    - released: liberada manualmente (orden cancelada antes de confirmar)
+    - expired: expiró por tiempo sin confirmación
+    - cancelled: cancelada explícitamente (similar a released pero por acción directa)
+    """
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('released', 'Released'),
+        ('expired', 'Expired'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reservations')
+    quantity = models.PositiveIntegerField()
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
+    order_reference = models.CharField(max_length=64, blank=True, null=True, help_text="ID/UUID de la orden externa en servicio_ventas")
+    reserved_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(help_text="Fecha/hora en que la reserva expira si no se confirma")
+    confirmed_at = models.DateTimeField(blank=True, null=True)
+    released_at = models.DateTimeField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['product', 'status']),
+            models.Index(fields=['expires_at']),
+        ]
+        ordering = ['-reserved_at']
+        verbose_name = "Stock Reservation"
+        verbose_name_plural = "Stock Reservations"
+
+    def __str__(self):
+        return f"Reservation {self.id} {self.product.sku} x {self.quantity} ({self.status})"
+
+    @property
+    def is_active(self):
+        return self.status in ('pending', 'confirmed')
+
+    def mark_confirmed(self):
+        if self.status != 'pending':
+            return False
+        self.status = 'confirmed'
+        self.confirmed_at = timezone.now()
+        self.save(update_fields=['status', 'confirmed_at', 'updated_at'])
+        return True
+
+    def release(self, reason: str = ''):
+        if self.status in ('released', 'expired', 'cancelled'):
+            return False
+        self.status = 'released'
+        self.released_at = timezone.now()
+        if reason:
+            self.notes = f"{self.notes}\n{reason}" if self.notes else reason
+        self.save(update_fields=['status', 'released_at', 'notes', 'updated_at'])
+        return True
+
+    def cancel(self, reason: str = ''):
+        if self.status in ('cancelled', 'expired'):
+            return False
+        self.status = 'cancelled'
+        self.released_at = timezone.now()
+        if reason:
+            self.notes = f"{self.notes}\n{reason}" if self.notes else reason
+        self.save(update_fields=['status', 'released_at', 'notes', 'updated_at'])
+        return True
+
+    def expire_if_needed(self):
+        if self.status == 'pending' and timezone.now() >= self.expires_at:
+            self.status = 'expired'
+            self.save(update_fields=['status', 'updated_at'])
+            return True
+        return False
+
+    @classmethod
+    def create_with_ttl(cls, product, quantity: int, ttl_minutes: int = 15, order_reference: str = None, notes: str = None):
+        expires_at = timezone.now() + timezone.timedelta(minutes=ttl_minutes)
+        return cls.objects.create(
+            product=product,
+            quantity=quantity,
+            expires_at=expires_at,
+            order_reference=order_reference,
+            notes=notes,
+        )

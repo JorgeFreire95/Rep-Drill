@@ -174,6 +174,94 @@ class InventoryService:
             'order_id': order.id
         }
 
+    @staticmethod
+    def create_reservation(product_id, quantity, order_reference, ttl_minutes=15):
+        """Crea una reserva de stock en el servicio de inventario.
+        No descuenta stock inmediatamente; asegura disponibilidad.
+        """
+        try:
+            base_url = InventoryService.get_base_url()
+            url = f"{base_url}/api/reservations/"
+            payload = {
+                'product': product_id,
+                'quantity': quantity,
+                'order_reference': str(order_reference),
+                'ttl_minutes': ttl_minutes,
+            }
+            resp = requests.post(url, json=payload, timeout=5)
+            if resp.status_code in (200, 201):
+                data = resp.json()
+                return {'success': True, 'reservation': data}
+            else:
+                return {'success': False, 'error': f"Reservation failed: {resp.status_code}", 'details': resp.text}
+        except Exception as e:
+            logger.error(f"Error creating reservation: {e}")
+            return {'success': False, 'error': str(e)}
+
+    @staticmethod
+    def release_reservation(reservation_id, reason='rollback'):
+        try:
+            base_url = InventoryService.get_base_url()
+            url = f"{base_url}/api/reservations/{reservation_id}/release/"
+            resp = requests.post(url, json={'reason': reason}, timeout=5)
+            return resp.status_code in (200, 204)
+        except Exception:
+            return False
+
+    @staticmethod
+    def commit_reservation(reservation_id):
+        try:
+            base_url = InventoryService.get_base_url()
+            url = f"{base_url}/api/reservations/{reservation_id}/commit/"
+            resp = requests.post(url, timeout=5)
+            if resp.status_code in (200, 201):
+                return {'success': True, 'data': resp.json()}
+            return {'success': False, 'error': f'Commit failed {resp.status_code}', 'details': resp.text}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    @staticmethod
+    def uncommit_reservation(reservation_id):
+        try:
+            base_url = InventoryService.get_base_url()
+            url = f"{base_url}/api/reservations/{reservation_id}/uncommit/"
+            resp = requests.post(url, timeout=5)
+            if resp.status_code in (200, 201):
+                return {'success': True, 'data': resp.json()}
+            return {'success': False, 'error': f'Uncommit failed {resp.status_code}', 'details': resp.text}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    @staticmethod
+    def list_reservations_for_order(order_id):
+        try:
+            base_url = InventoryService.get_base_url()
+            url = f"{base_url}/api/reservations/by_order/?order_reference={order_id}"
+            resp = requests.get(url, timeout=5)
+            if resp.status_code == 200:
+                return {'success': True, 'data': resp.json()}
+            return {'success': False, 'error': f'List failed {resp.status_code}', 'details': resp.text}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    @staticmethod
+    def create_reservations_for_order(order_id, details):
+        """Intenta crear una reserva por cada detalle. Si falla alguna, revierte las anteriores."""
+        created = []
+        for d in details:
+            product_id = d.get('product_id')
+            quantity = d.get('quantity')
+            if not product_id or not quantity:
+                return {'success': False, 'error': 'Invalid detail data'}
+            res = InventoryService.create_reservation(product_id, quantity, order_reference=order_id)
+            if not res.get('success'):
+                # rollback
+                for r in created:
+                    InventoryService.release_reservation(r['reservation']['id'], reason='rollback failed create')
+                return {'success': False, 'error': 'Reservation failed', 'failed_detail': d, 'reservation_error': res}
+            created.append(res)
+        return {'success': True, 'reservations': created}
+
 
 class OrderService:
     """

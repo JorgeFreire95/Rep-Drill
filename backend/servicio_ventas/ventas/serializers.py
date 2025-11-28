@@ -58,37 +58,54 @@ class OrderDetailCreateSerializer(serializers.Serializer):
 class OrderSerializer(serializers.ModelSerializer):
     details = OrderDetailCreateSerializer(many=True, write_only=True, required=False)
     details_read = OrderDetailsSerializer(many=True, read_only=True, source='details')
-    customer_name = serializers.SerializerMethodField()
+    customer_name_cached = serializers.CharField(source='customer_name', read_only=True)
+    customer_email_cached = serializers.EmailField(source='customer_email', read_only=True)
+    customer_phone_cached = serializers.CharField(source='customer_phone', read_only=True)
+    customer_details = serializers.SerializerMethodField()
     order_date = serializers.DateField(required=False, allow_null=True)
     
     class Meta:
         model = Order
         fields = '__all__'
-        read_only_fields = ('total',)
+        read_only_fields = ('total', 'customer_name', 'customer_email', 'customer_phone')
     
-    def get_customer_name(self, obj):
+    def get_customer_details(self, obj):
         """
-        Obtener el nombre del cliente desde el servicio de personas.
-        Usa RobustServiceClient para garantizar conectividad confiable.
-        """
-        try:
-            client = RobustServiceClient(base_url='http://personas:8000', service_name='personas')
-            response = client.get(f'/api/personas/{obj.customer_id}/')
-            
-            if response and response.get('success') is not False:
-                customer_data = response.get('data', {}) if isinstance(response, dict) else response
-                return customer_data.get('nombre', f'Cliente #{obj.customer_id}')
-            else:
-                error_msg = response.get('error', 'Unknown error') if isinstance(response, dict) else 'Connection failed'
-                logger.warning(
-                    f"Error obteniendo cliente {obj.customer_id}: {error_msg}"
-                )
-        except Exception as e:
-            logger.error(
-                f"Excepción obteniendo nombre de cliente {obj.customer_id}: {str(e)}"
-            )
+        Obtiene detalles completos del cliente desde el servicio Personas.
+        Solo se incluye si el contexto lo solicita (include_customer_details=True).
         
-        return f'Cliente #{obj.customer_id}'
+        Si no se solicita, retorna los datos cacheados en el modelo.
+        """
+        # Por defecto, retornar datos cacheados
+        cached_data = {
+            'id': obj.customer_id,
+            'name': obj.customer_name,
+            'email': obj.customer_email,
+            'phone': obj.customer_phone,
+            'from_cache': True
+        }
+        
+        # Si se solicita explícitamente, obtener datos completos
+        if self.context.get('include_customer_details'):
+            full_details = obj.get_customer_details()
+            if full_details:
+                return {
+                    'id': full_details.get('id'),
+                    'nombre': full_details.get('nombre'),
+                    'apellido': full_details.get('apellido'),
+                    'email': full_details.get('email'),
+                    'telefono': full_details.get('telefono'),
+                    'rut': full_details.get('rut'),
+                    'direccion': full_details.get('direccion'),
+                    'es_cliente': full_details.get('es_cliente'),
+                    'from_cache': False
+                }
+            else:
+                # Si falla la consulta, retornar cache
+                return cached_data
+        
+        # Retornar datos cacheados por defecto
+        return cached_data
     
     def create(self, validated_data):
         details_data = validated_data.pop('details', [])

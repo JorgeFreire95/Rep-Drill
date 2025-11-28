@@ -1,5 +1,10 @@
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Create your models here.
 class Order(models.Model):
@@ -14,6 +19,28 @@ class Order(models.Model):
     ]
     
     customer_id = models.IntegerField()  # FK a la tabla de clientes (personas)
+    
+    # ✅ CACHE: Datos del cliente para evitar consultas constantes al servicio Personas
+    customer_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        default=None,
+        help_text="Nombre completo del cliente (cache)"
+    )
+    customer_email = models.EmailField(
+        blank=True,
+        null=True,
+        default=None,
+        help_text="Email del cliente (cache)"
+    )
+    customer_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        default=None,
+        help_text="Teléfono del cliente (cache)"
+    )
     
     # ✅ NUEVO: ID del empleado que crea la orden (sin FK para evitar problemas de BD compartida)
     created_by_id = models.IntegerField(
@@ -53,7 +80,87 @@ class Order(models.Model):
         super().save(*args, **kwargs)
     
     def __str__(self):
-        return f"Order #{self.id} - Customer: {self.customer_id} - Status: {self.status}"
+        return f"Order #{self.id} - Customer: {self.customer_name or self.customer_id} - Status: {self.status}"
+    
+    def get_customer_details(self):
+        """
+        Obtiene los detalles completos del cliente desde el servicio de Personas.
+        
+        Returns:
+            dict: Datos del cliente o None si hay error
+        """
+        try:
+            response = requests.get(
+                f"{settings.PERSONAS_SERVICE_URL}/api/personas/{self.customer_id}/",
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(
+                    f"Error obteniendo detalles del cliente {self.customer_id}: "
+                    f"Status {response.status_code}"
+                )
+                return None
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error de conexión con servicio Personas: {str(e)}")
+            return None
+    
+    def sync_customer_cache(self):
+        """
+        Sincroniza los datos cacheados del cliente con el servicio de Personas.
+        
+        Returns:
+            bool: True si se actualizó correctamente, False si hubo error
+        """
+        customer_data = self.get_customer_details()
+        
+        if customer_data:
+            # Actualiza campos de cache
+            self.customer_name = f"{customer_data.get('nombre', '')} {customer_data.get('apellido', '')}".strip()
+            self.customer_email = customer_data.get('email', '')
+            self.customer_phone = customer_data.get('telefono', '')
+            
+            self.save(update_fields=['customer_name', 'customer_email', 'customer_phone'])
+            
+            logger.info(f"Cache de cliente sincronizado para orden {self.id}")
+            return True
+        else:
+            logger.warning(f"No se pudo sincronizar cache para orden {self.id}")
+            return False
+    
+    @classmethod
+    def sync_all_customer_caches(cls):
+        """
+        Sincroniza el cache de clientes para todas las órdenes activas.
+        
+        Returns:
+            dict: Estadísticas de la sincronización
+        """
+        active_orders = cls.objects.filter(
+            status__in=['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED']
+        )
+        
+        success_count = 0
+        error_count = 0
+        
+        for order in active_orders:
+            if order.sync_customer_cache():
+                success_count += 1
+            else:
+                error_count += 1
+        
+        logger.info(
+            f"Sincronización masiva completada: {success_count} éxitos, {error_count} errores"
+        )
+        
+        return {
+            'success': success_count,
+            'errors': error_count,
+            'total': active_orders.count()
+        }
     
     def get_total_paid(self):
         """Calcula el total pagado de la orden"""

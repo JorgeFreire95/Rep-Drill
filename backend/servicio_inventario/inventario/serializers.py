@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Warehouse, Category, Product, ProductPriceHistory, Inventory, InventoryEvent, ReorderRequest, ReorderStatusHistory, Supplier, ProductCostHistory, AuditLog
+from .models import Warehouse, Category, Product, ProductPriceHistory, Inventory, InventoryEvent, ReorderRequest, ReorderStatusHistory, Supplier, ProductCostHistory, AuditLog, StockReservation
 
 
 class WarehouseSerializer(serializers.ModelSerializer):
@@ -83,3 +83,14 @@ class AuditLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = AuditLog
         fields = '__all__'
+
+
+class StockReservationSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    sku = serializers.CharField(source='product.sku', read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = StockReservation
+        fields = '__all__'
+        read_only_fields = ('status', 'reserved_at', 'confirmed_at', 'released_at', 'created_at', 'updated_at')

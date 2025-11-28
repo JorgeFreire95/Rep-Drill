@@ -206,3 +206,13 @@ SPECTACULAR_SETTINGS = {
         'displayOperationId': True,
     },
 }
+
+# ===========================================
+# CONFIGURACIÓN DE MICROSERVICIOS
+# ===========================================
+
+# URL del servicio de analytics para invalidación de cache
+ANALYTICS_SERVICE_URL = os.getenv('ANALYTICS_SERVICE_URL', 'http://analytics:8000')
+
+# Timeout para requests entre servicios (en segundos)
+MICROSERVICE_REQUEST_TIMEOUT = 5

@@ -19,7 +19,9 @@ from .models import (
     InventoryTurnoverMetrics,
     CategoryPerformanceMetrics,
     StockReorderRecommendation,
-    TaskRun
+    TaskRun,
+    ForecastProductAccuracy,
+    ForecastCategoryAccuracy,
 )
 from .serializers import (
     DailySalesMetricsSerializer,
@@ -31,6 +33,8 @@ from .serializers import (
     InventoryHealthSerializer,
     TopProductSerializer,
     TaskRunSerializer,
+    ForecastProductAccuracySerializer,
+    ForecastCategoryAccuracySerializer,
 )
 from .services import MetricsCalculator
 from .forecasting import DemandForecast, BatchDemandForecast
@@ -340,6 +344,23 @@ class TaskRunViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({'count': len(data), 'results': data})
 
 
+class ForecastAccuracyProductViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = ForecastProductAccuracy.objects.all()
+    serializer_class = ForecastProductAccuracySerializer
+    permission_classes = [AllowAny]
+    ordering = ['-window_end']
+    filterset_fields = ['product_id']
+    authentication_classes = []
+
+class ForecastAccuracyCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = ForecastCategoryAccuracy.objects.all()
+    serializer_class = ForecastCategoryAccuracySerializer
+    permission_classes = [AllowAny]
+    ordering = ['-window_end']
+    filterset_fields = ['category_id']
+    authentication_classes = []
+
+
 class ProphetForecastViewSet(viewsets.ViewSet):
     """Endpoints de forecasting con Prophet (ventas totales, productos y componentes)."""
     permission_classes = [AllowAny]
@@ -497,6 +518,26 @@ class ProphetForecastViewSet(viewsets.ViewSet):
         components = forecaster.get_components() or {}
 
         return Response(components or {'trend': [], 'weekly': [], 'yearly': []})
+
+    @action(detail=False, methods=['post'], url_path='invalidate')
+    def invalidate_forecast_cache(self, request):
+        """Invalidar caché de pronósticos.
+        POST /api/prophet/invalidate/ {"product_ids": [1,2], "include_total": true}
+        Si no se envían product_ids y include_total=true, invalida solo total sales.
+        """
+        from .forecast_cache import invalidate_products, invalidate_total_sales
+        product_ids = request.data.get('product_ids') or []
+        include_total = bool(request.data.get('include_total', False))
+        deleted = 0
+        if product_ids:
+            try:
+                ids = [int(x) for x in product_ids if str(x).isdigit()]
+            except Exception:
+                return Response({'error': 'product_ids deben ser enteros'}, status=400)
+            deleted += invalidate_products(ids)
+        if include_total:
+            deleted += invalidate_total_sales()
+        return Response({'status': 'ok', 'deleted_keys': deleted, 'products': product_ids, 'include_total': include_total})
 
     @action(detail=False, methods=['get'], url_path='category-forecast')
     def category_forecast(self, request):
@@ -1083,7 +1124,7 @@ class ProphetForecastViewSet(viewsets.GenericViewSet):
         Forecast demand for top N products by revenue.
         
         Query Parameters:
-        - top_n: Number of top products (default: 10, max: 50)
+        - top_n: Number of top products (default: 10, max: 150)
         - periods: Number of days to forecast (default: 30, max: 365)
         
         Response:
@@ -1105,7 +1146,7 @@ class ProphetForecastViewSet(viewsets.GenericViewSet):
         """
         try:
             top_n = int(request.query_params.get('top_n', 10))
-            top_n = min(max(top_n, 1), 50)  # Clamp between 1 and 50
+            top_n = min(max(top_n, 1), 150)  # Clamp between 1 and 150
             periods = int(request.query_params.get('periods', 30))
             periods = min(max(periods, 7), 365)  # Clamp between 7 and 365
             
@@ -1205,58 +1246,68 @@ class ProphetForecastViewSet(viewsets.GenericViewSet):
         GET /api/prophet/forecast-components/?product_id=1&periods=30
         
         Get Prophet forecast components (trend, seasonality) for visualization.
+        If product_id is not provided, returns components for total sales forecast.
+        
+        Query Parameters:
+        - product_id: Optional. Product ID for specific product forecast. If omitted, uses total sales.
+        - periods: Number of days to forecast (default: 90, max: 365)
         
         Response:
         {
-            "status": "success",
-            "product_id": 1,
-            "components": {
-                "trend": [...],
-                "yearly": [...],
-                "weekly": [...]
-            }
+            "trend": [...],
+            "weekly": [...],
+            "yearly": [...]
         }
         """
         try:
             product_id = request.query_params.get('product_id')
-            periods = int(request.query_params.get('periods', 30))
+            periods = int(request.query_params.get('periods', 90))
+            periods = min(max(periods, 7), 365)
             
+            # If product_id is provided, use it; otherwise forecast total sales
             if product_id:
                 forecast = DemandForecast(product_id=int(product_id))
             else:
-                forecast = DemandForecast()  # Total sales
+                forecast = DemandForecast(product_id=None)  # Total sales
             
-            # Generate forecast first
-            forecast_df = forecast.forecast_demand(periods)
-            
-            if forecast_df is None:
-                return Response({
-                    'status': 'error',
-                    'message': 'Unable to generate forecast'
-                })
-            
-            # Get components
+            forecast.forecast_demand(periods)
             components = forecast.get_components()
             
             if components is None:
-                return Response({
-                    'status': 'error',
-                    'message': 'Unable to extract components'
-                })
+                # Return empty structure if no components available
+                return Response({'trend': [], 'weekly': [], 'yearly': []})
             
-            return Response({
-                'status': 'success',
-                'product_id': int(product_id) if product_id else None,
-                'components': components,
-                'periods': periods
-            })
+            return Response(components)
             
+        except ValueError as e:
+            logger.error(f'Invalid parameters: {str(e)}')
+            return Response({'error': 'Invalid parameters'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f'Error getting forecast components: {str(e)}', exc_info=True)
             return Response(
                 {'error': 'Failed to get components', 'detail': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+    
+    @action(detail=False, methods=['post'], url_path='invalidate')
+    def invalidate_forecast_cache(self, request):
+        """Invalidar caché de pronósticos.
+        POST /api/prophet/invalidate/ {"product_ids": [1,2], "include_total": true}
+        Si no se envían product_ids y include_total=true, invalida solo total sales.
+        """
+        from .forecast_cache import invalidate_products, invalidate_total_sales
+        product_ids = request.data.get('product_ids') or []
+        include_total = bool(request.data.get('include_total', False))
+        deleted = 0
+        if product_ids:
+            try:
+                ids = [int(x) for x in product_ids if str(x).isdigit()]
+            except Exception:
+                return Response({'error': 'product_ids deben ser enteros'}, status=400)
+            deleted += invalidate_products(ids)
+        if include_total:
+            deleted += invalidate_total_sales()
+        return Response({'status': 'ok', 'deleted_keys': deleted, 'products': product_ids, 'include_total': include_total})
 
 
 # ============================================================================
@@ -1640,8 +1691,11 @@ class ReportsViewSet(viewsets.ViewSet):
 
         product_ids = [m['product_id'] for m in metrics]
 
-        # Obtener costos desde inventario (batch via ids)
+        # Obtener costos y nombres actuales desde inventario (batch via ids)
         costs_map = {}
+        products_map = {}  # Maps product_id to {name, sku}
+        valid_product_ids = set()  # Only ACTIVE products
+        
         if product_ids:
             try:
                 inv_url = 'http://inventario:8000/api/products/'
@@ -1651,22 +1705,40 @@ class ReportsViewSet(viewsets.ViewSet):
                     products = r.json()
                     # La respuesta puede ser lista directa (DRF ModelViewSet default)
                     for p in products:
-                        costs_map[p.get('id')] = float(p.get('cost_price') or 0)
+                        product_id = p.get('id')
+                        # Solo incluir productos con status='ACTIVE'
+                        if p.get('status') == 'ACTIVE':
+                            valid_product_ids.add(product_id)
+                            costs_map[product_id] = float(p.get('cost_price') or 0)
+                            products_map[product_id] = {
+                                'name': p.get('name', ''),
+                                'sku': p.get('sku', '')
+                            }
             except Exception as e:
                 logger.warning(f'No se pudieron obtener costos desde inventario: {e}')
 
         rows = []
         for m in metrics:
+            product_id = m['product_id']
+            
+            # Skip products that are not ACTIVE in current inventory
+            if product_id not in valid_product_ids:
+                continue
+                
             revenue = float(m['revenue'] or 0)
             qty = int(m['qty'] or 0)
-            cost_price = costs_map.get(m['product_id'], 0.0)
+            cost_price = costs_map.get(product_id, 0.0)
             cost = cost_price * qty
             profit = revenue - cost
             margin_pct = (profit / revenue * 100.0) if revenue > 0 else 0.0
+            
+            # Use current product name and SKU from inventory, not historical from metrics
+            current_product = products_map.get(product_id, {})
+            
             rows.append({
-                'product_id': m['product_id'],
-                'product_name': m['product_name'],
-                'product_sku': m.get('product_sku') or '',
+                'product_id': product_id,
+                'product_name': current_product.get('name', m['product_name']),
+                'product_sku': current_product.get('sku', m.get('product_sku') or ''),
                 'quantity_sold': qty,
                 'revenue': revenue,
                 'unit_cost': cost_price,
@@ -2090,5 +2162,6 @@ class RestockForecastViewSet(viewsets.ViewSet):
                 {'error': 'Failed to create purchase orders', 'detail': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 

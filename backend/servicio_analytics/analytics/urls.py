@@ -33,6 +33,9 @@ router.register(r'restock', RestockForecastViewSet, basename='restock-forecast')
 router.register(r'dashboard', DashboardMetricsViewSet, basename='dashboard-metrics')
 router.register(r'reports', ReportsViewSet, basename='reports')
 router.register(r'task-runs', TaskRunViewSet, basename='task-runs')
+from .views import ForecastAccuracyProductViewSet, ForecastAccuracyCategoryViewSet
+router.register(r'forecast-accuracy/products', ForecastAccuracyProductViewSet, basename='forecast-accuracy-product')
+router.register(r'forecast-accuracy/categories', ForecastAccuracyCategoryViewSet, basename='forecast-accuracy-category')
 
 urlpatterns = [
     path('', include(router.urls)),

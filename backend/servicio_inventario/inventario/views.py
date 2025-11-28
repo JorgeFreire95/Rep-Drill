@@ -5,14 +5,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from django.http import HttpResponse
-from django.db.models import Q
+from django.db.models import Q, Sum
 import csv
 import json
 from django.db import models as db_models
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Sum
-from .models import Warehouse, Category, Product, ProductPriceHistory, Inventory, InventoryEvent, ReorderRequest, ReorderStatusHistory, Supplier, ProductCostHistory, AuditLog
+from .models import Warehouse, Category, Product, ProductPriceHistory, Inventory, InventoryEvent, ReorderRequest, ReorderStatusHistory, Supplier, ProductCostHistory, AuditLog, StockReservation
 from .serializers import (
     WarehouseSerializer,
     CategorySerializer,
@@ -25,6 +25,7 @@ from .serializers import (
     ReorderStatusHistorySerializer,
     SupplierSerializer,
     AuditLogSerializer,
+    StockReservationSerializer,
 )
 
 
@@ -482,6 +483,114 @@ class SupplierViewSet(viewsets.ModelViewSet):
             'window_days': days,
         }
         return Response(metrics)
+
+
+class StockReservationViewSet(viewsets.ModelViewSet):
+    """CRUD básico para reservas de stock.
+    POST crea una reserva si hay disponibilidad (stock real menos reservas activas).
+    """
+    queryset = StockReservation.objects.select_related('product').all()
+    serializer_class = StockReservationSerializer
+    permission_classes = [AllowAny]
+    ordering = ['-reserved_at']
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['product__name', 'order_reference', 'status']
+    ordering_fields = ['reserved_at', 'expires_at', 'status']
+
+    def create(self, request, *args, **kwargs):
+        try:
+            product_id = request.data.get('product') or request.data.get('product_id')
+            quantity = int(request.data.get('quantity', 0))
+            ttl_minutes = int(request.data.get('ttl_minutes', 15))
+            order_reference = request.data.get('order_reference')
+            notes = request.data.get('notes')
+            if not product_id or quantity <= 0:
+                return Response({'error': 'product and positive quantity required'}, status=400)
+            product = Product.objects.filter(id=product_id, status='ACTIVE').first()
+            if not product:
+                return Response({'error': 'Product not found or inactive'}, status=404)
+            # Calcular reservas activas vigentes
+            now = timezone.now()
+            active_reserved = StockReservation.objects.filter(
+                product_id=product.id,
+                status__in=['pending', 'confirmed'],
+            ).exclude(status='pending', expires_at__lt=now).aggregate(total=Sum('quantity'))['total'] or 0
+            available = product.quantity - active_reserved
+            if quantity > available:
+                return Response({'error': 'Insufficient available stock', 'available': available, 'requested': quantity}, status=409)
+            reservation = StockReservation.create_with_ttl(product, quantity, ttl_minutes=ttl_minutes, order_reference=order_reference, notes=notes)
+            serializer = self.get_serializer(reservation)
+            return Response(serializer.data, status=201)
+        except ValueError:
+            return Response({'error': 'quantity and ttl_minutes must be integers'}, status=400)
+        except Exception as e:
+            return Response({'error': 'Internal server error', 'detail': str(e)}, status=500)
+
+    @action(detail=True, methods=['post'])
+    def release(self, request, pk=None):
+        reservation = self.get_object()
+        reason = request.data.get('reason', '')
+        if reservation.release(reason):
+            return Response({'status': 'released', 'id': reservation.id})
+        return Response({'error': 'Cannot release reservation'}, status=400)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        reservation = self.get_object()
+        reason = request.data.get('reason', '')
+        if reservation.cancel(reason):
+            return Response({'status': 'cancelled', 'id': reservation.id})
+        return Response({'error': 'Cannot cancel reservation'}, status=400)
+
+    @action(detail=False, methods=['get'])
+    def active_summary(self, request):
+        now = timezone.now()
+        qs = StockReservation.objects.filter(status__in=['pending', 'confirmed']).exclude(status='pending', expires_at__lt=now)
+        agg = qs.values('product_id').annotate(total_reserved=Sum('quantity')).order_by('-total_reserved')[:50]
+        return Response({'count': qs.count(), 'results': list(agg)})
+
+    @action(detail=True, methods=['post'])
+    def commit(self, request, pk=None):
+        """Confirma la reserva y descuenta el stock del producto si aún no confirmado."""
+        from django.db import transaction
+        reservation = self.get_object()
+        if reservation.status == 'confirmed':
+            return Response({'status': 'already-confirmed', 'id': reservation.id})
+        if reservation.status != 'pending':
+            return Response({'error': 'Only pending reservations can be confirmed'}, status=400)
+        with transaction.atomic():
+            product = reservation.product
+            product.refresh_from_db()
+            if product.quantity < reservation.quantity:
+                return Response({'error': 'Insufficient product quantity to confirm'}, status=409)
+            product.quantity = product.quantity - reservation.quantity
+            product.save(update_fields=['quantity'])
+            reservation.mark_confirmed()
+        return Response({'status': 'confirmed', 'id': reservation.id, 'product_quantity': product.quantity})
+
+    @action(detail=True, methods=['post'])
+    def uncommit(self, request, pk=None):
+        """Revierte una reserva confirmada (compensación saga)."""
+        from django.db import transaction
+        reservation = self.get_object()
+        if reservation.status != 'confirmed':
+            return Response({'error': 'Only confirmed reservations can be uncommitted'}, status=400)
+        with transaction.atomic():
+            product = reservation.product
+            product.refresh_from_db()
+            product.quantity = product.quantity + reservation.quantity
+            product.save(update_fields=['quantity'])
+            reservation.release(reason='uncommit compensation')
+        return Response({'status': 'uncommitted', 'id': reservation.id, 'product_quantity': product.quantity})
+
+    @action(detail=False, methods=['get'])
+    def by_order(self, request):
+        order_ref = request.query_params.get('order_reference')
+        if not order_ref:
+            return Response({'error': 'order_reference query param required'}, status=400)
+        qs = StockReservation.objects.filter(order_reference=order_ref).order_by('-reserved_at')
+        serializer = self.get_serializer(qs, many=True)
+        return Response({'count': qs.count(), 'results': serializer.data})
 
 
 class ReportsViewSet(viewsets.ViewSet):

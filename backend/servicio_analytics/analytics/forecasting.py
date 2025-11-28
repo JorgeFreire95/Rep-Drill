@@ -14,6 +14,7 @@ import pickle
 import sys
 import os
 
+from django.db import models
 from .models import DailySalesMetrics, ProductDemandMetrics
 from .data_quality import DataQualityValidator
 from django.core.cache import cache
@@ -526,31 +527,80 @@ class BatchDemandForecast:
             List of forecasts with product info
         """
         try:
-            # Get top products by revenue
-            top_products = ProductDemandMetrics.objects.order_by(
-                '-total_revenue'
-            )[:top_n]
+            import requests
+            from django.conf import settings
+            
+            # Get top products by revenue (using distinct to avoid duplicates)
+            top_products = ProductDemandMetrics.objects.values('product_id').annotate(
+                total_rev=models.Sum('total_revenue')
+            ).order_by('-total_rev')[:top_n]
+            
+            # Extract product IDs
+            product_ids = [p['product_id'] for p in top_products]
+            
+            # Fetch ALL product details from inventory service
+            product_details = {}
+            try:
+                inventario_url = getattr(settings, 'INVENTARIO_SERVICE_URL', 'http://inventario:8000')
+                page = 1
+                while True:
+                    response = requests.get(
+                        f'{inventario_url}/api/products/',
+                        params={'page': page, 'page_size': 100},
+                        timeout=5
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        results = data.get('results', []) if isinstance(data, dict) else data
+                        
+                        for prod in results:
+                            product_details[prod['id']] = {
+                                'name': prod.get('name', ''),
+                                'sku': prod.get('sku', '')
+                            }
+                        
+                        # Check if there are more pages
+                        if isinstance(data, dict) and data.get('next'):
+                            page += 1
+                        else:
+                            break
+                    else:
+                        logger.warning(f"Failed to fetch products from inventory: {response.status_code}")
+                        break
+                        
+                logger.info(f"Fetched {len(product_details)} products from inventory service")
+            except Exception as e:
+                logger.warning(f"Could not fetch product details from inventory service: {str(e)}")
             
             results = []
             
-            for product_metric in top_products:
-                logger.info(f"Forecasting product {product_metric.product_id}...")
+            for product_id in product_ids:
+                logger.info(f"Forecasting product {product_id}...")
                 
-                forecast = DemandForecast(product_id=product_metric.product_id)
+                # Get product name from inventory service
+                product_info = product_details.get(product_id, {})
+                product_name = product_info.get('name', f'Producto {product_id}')
+                product_code = product_info.get('sku', '')
+                
+                # Generate forecast
+                forecast = DemandForecast(product_id=product_id)
                 forecast_data = forecast.forecast_demand(periods)
                 
                 if forecast_data is not None:
                     results.append({
-                        'product_id': product_metric.product_id,
-                        'product_name': product_metric.product_name,
+                        'product_id': product_id,
+                        'product_name': product_name,
+                        'product_code': product_code,
                         'forecast': forecast_data.to_dict('records'),
                         'periods': periods,
                         'status': 'success'
                     })
                 else:
+                    # Include product even if forecast fails
                     results.append({
-                        'product_id': product_metric.product_id,
-                        'product_name': product_metric.product_name,
+                        'product_id': product_id,
+                        'product_name': product_name,
+                        'product_code': product_code,
                         'forecast': [],
                         'periods': periods,
                         'status': 'error',

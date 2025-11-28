@@ -9,6 +9,8 @@ from .models import (
     CategoryPerformanceMetrics,
     StockReorderRecommendation,
     ForecastAccuracyHistory,
+    ForecastProductAccuracy,
+    ForecastCategoryAccuracy,
     TaskRun
 )
 
@@ -75,6 +77,20 @@ class ForecastAccuracyHistorySerializer(serializers.ModelSerializer):
         model = ForecastAccuracyHistory
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at', 'absolute_error', 'percentage_error', 'within_confidence']
+
+
+class ForecastProductAccuracySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ForecastProductAccuracy
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class ForecastCategoryAccuracySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ForecastCategoryAccuracy
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
 
 
 class SalesTrendSerializer(serializers.Serializer):

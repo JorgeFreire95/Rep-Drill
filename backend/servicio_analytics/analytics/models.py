@@ -619,6 +619,62 @@ class ForecastAccuracyHistory(models.Model):
         return f"{status} {self.forecast_type} - {self.predicted_date} (h={self.forecast_horizon_days}d)"
 
 
+class ForecastProductAccuracy(models.Model):
+    """Precisión agregada (MAPE) de pronósticos por producto en una ventana temporal."""
+    product_id = models.IntegerField(db_index=True)
+    window_start = models.DateField()
+    window_end = models.DateField()
+    days_evaluated = models.IntegerField(default=0)
+    mape = models.DecimalField(max_digits=8, decimal_places=2, help_text="Mean Absolute Percentage Error %")
+    mae = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Mean Absolute Error")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'analytics_forecast_product_accuracy'
+        verbose_name = 'Precisión Forecast Producto'
+        verbose_name_plural = 'Precisiones Forecast Producto'
+        ordering = ['-window_end', 'product_id']
+        indexes = [
+            models.Index(fields=['product_id', '-window_end']),
+            models.Index(fields=['-created_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['product_id', 'window_start', 'window_end'], name='uniq_product_window_accuracy')
+        ]
+
+    def __str__(self):
+        return f"Product {self.product_id} MAPE={self.mape}% ({self.window_start}..{self.window_end})"
+
+
+class ForecastCategoryAccuracy(models.Model):
+    """Precisión agregada (MAPE) de pronósticos por categoría (promedio productos)."""
+    category_id = models.IntegerField(db_index=True)
+    window_start = models.DateField()
+    window_end = models.DateField()
+    products_count = models.IntegerField(default=0)
+    mape = models.DecimalField(max_digits=8, decimal_places=2, help_text="Mean Absolute Percentage Error %")
+    mae = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Mean Absolute Error promedio")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'analytics_forecast_category_accuracy'
+        verbose_name = 'Precisión Forecast Categoría'
+        verbose_name_plural = 'Precisiones Forecast Categoría'
+        ordering = ['-window_end', 'category_id']
+        indexes = [
+            models.Index(fields=['category_id', '-window_end']),
+            models.Index(fields=['-created_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['category_id', 'window_start', 'window_end'], name='uniq_category_window_accuracy')
+        ]
+
+    def __str__(self):
+        return f"Category {self.category_id} MAPE={self.mape}% ({self.window_start}..{self.window_end})"
+
+
 class TaskRun(models.Model):
     """
     Registro de ejecuciones de tareas Celery para monitoreo.
