@@ -35,7 +35,7 @@ Este repositorio contiene el source code del Software de Gestión para la Sala d
 | TRANS-OBJ-PROJ-01_02 | Capacitar al personal para asegurar que estén preparados para manipular los módulos implementados. |
 | TRANS-OBJ-PROJ-01_03 | Controlar y monitorear constantemente que se estén aplicando todos los estándares internacionales que deben ser implementados en el proyecto. |
 
-## Functionality
+## Functionalities
 
 | ID | Nombre | Descripción |
 | ------------- | ------------- | ------------- |
