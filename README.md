@@ -6,7 +6,7 @@
 
 ## Repository
 
-Este repositorio contiene el source code del Software de Gestión para la Sala de Ventas: Lubricentro **Rep-Drill**.
+Este repositorio contiene el source code del Software de Gestión Inteligente para la Sala de Ventas; Lubricentro **Rep-Drill**.
 
 ## Main objectives of the Solution
 
