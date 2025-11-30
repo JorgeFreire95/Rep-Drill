@@ -106,9 +106,9 @@ Este repositorio contiene el source code del Software de Gestión para la Sala d
 ### 3.	Fase 3: Presentación Proyecto APT: Cierre y Retrospectiva.
 #### 3.1.	Iteración / Sprint 4.9: Cierre y Retrospectiva.
 
-- [ ] 3.1.	Iteración / Sprint 4.9: Cierre y Retrospectiva.
-  - [ ] 3.1.1.	Gestión de Cierre.
-  - [ ] 3.1.2.	Gestión de Exposición.
+- [x] 3.1.	Iteración / Sprint 4.9: Cierre y Retrospectiva.
+  - [x] 3.1.1.	Gestión de Cierre.
+  - [x] 3.1.2.	Gestión de Exposición.
 
 ## Scrum Board
 ### [Trello](https://trello.com/invite/b/6917b18d5b9f85f94f882575/ATTIf380119340f89fcbed7a90d8db750e15BA38C715/rep-drill)
